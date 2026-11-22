@@ -54,7 +54,7 @@ Esta seção descreve as funcionalidades e os limites da v1.
 
 Todos os requisitos RF e RNF deste documento são obrigatórios para a v1; a ordem abaixo indica dependência, não funcionalidade opcional:
 
-1. Registro de empresa com uma conta administrativa, login, logout e isolamento.
+1. Registro de empresa com uma conta administrativa, incluindo a tela pública de registro, login, logout e isolamento.
 2. Grupos de veículos e três modalidades de plano por grupo.
 3. Veículos com foto opcional e controle de disponibilidade.
 4. Clientes PF/PJ e condutores vinculados.
@@ -76,7 +76,7 @@ Recuperação de senha e administração da própria plataforma não foram inclu
 
 ### J-01 — Acessar e preparar a empresa
 
-O administrador registra usuário, e-mail e senha, criando a empresa isolada e sua única conta; entra com usuário/senha, configura grupos, planos, seguros e combustíveis. Credenciais inválidas não permitem acesso. Sem configuração necessária, a contratação é bloqueada com orientação do que falta. Logout encerra o acesso autenticado.
+O administrador acessa a tela pública de registro, informa usuário, e-mail, senha e confirmação de senha (validada somente no cliente), criando a empresa isolada e sua única conta; depois entra com usuário/senha, configura grupos, planos, seguros e combustíveis. O registro não exige dados empresariais adicionais e não autentica automaticamente. Credenciais inválidas não permitem acesso. Sem configuração necessária, a contratação é bloqueada com orientação do que falta. Logout encerra o acesso autenticado.
 
 ### J-02 — Preparar cadastros
 

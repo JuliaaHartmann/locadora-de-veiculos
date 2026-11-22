@@ -2,11 +2,13 @@
 
 **Status:** Base de design técnico da v1
 
+**Atualização da F1 — 22/11/2026:** a branch `feat/fase-1-fundacao-infraestrutura` contém a implementação local em revisão. As frases de ausência de implementação/testes da revisão de 19/11 abaixo descrevem aquela baseline, não o estado desta branch. Resultados atuais serão registrados na evidência da change, sem presumir homologação, publicação, aprovação independente ou conclusão da v1. O solicitante autorizou alinhar o registro ao RF-01 (sem nome empresarial e sem login automático), corrigir a SDD para Signal Forms, isolar o SQL dos testes e detalhar o limite de refresh.
+
 **Data:** 19/11/2026 (reorganização documental; versão anterior de 09/11/2026)
 
-**Revisão documental:** 19/11/2026. O documento passa a seguir nove seções e adota, como alvo de design, as decisões de sessão, publicação, testes, Compose, segredos e workflow registradas abaixo. Não houve implementação.
+**Revisão documental:** baseline de 19/11/2026, atualizada para a F1 em 22/11/2026. A baseline adotou as decisões de sessão, publicação, testes, Compose, segredos e workflow sem implementação naquela data. A atualização atual não altera os requisitos das fases posteriores.
 
-**Contexto documental:** este TDD é a base de design da v1 e descreve o estado do repositório na `main`. Não registra código existente, versões instaladas, recursos provisionados nem testes executados. A branch `docs/tdd-locacao-veiculos` não existe e não faz parte deste documento. O [docs/prd.md](prd.md) continua sendo a fonte do escopo funcional e não foi modificado. A frase do PRD sobre preparação sem Git permanece naquele arquivo e não é corrigida aqui.
+**Contexto documental:** este TDD é a base de design da v1. O estado da F1 nesta branch está registrado nas atualizações de 22/11 e na evidência da change; não confundir com a baseline documental de 19/11 nem com a situação da `main` antes da integração. O [PRD](prd.md) permanece fonte de escopo; a revisão autorizada de J-01 explicita a tela pública e preserva o RF-01 sem dados empresariais adicionais. A frase histórica do PRD sobre preparação sem Git não descreve o estado atual.
 
 **Escopo:** v1 administrativa do PRD. Documento de design técnico, não plano de desenvolvimento orientado a testes e não descrição de sistema já construído.
 
@@ -14,7 +16,7 @@
 
 **Fontes:** [docs/prd.md](prd.md), datado de 09/11/2026, status `Validado para TDD`. RF-01 a RF-19, RNF-01 a RNF-07, RN-01 a RN-09, J-01 a J-05 e CA-01 a CA-12 permanecem a referência funcional. As decisões de plataforma desta revisão estão escritas por completo neste arquivo. O domínio da locação não foi substituído pelo de outro produto.
 
-**Condições de execução:** a verificação de versões da seção 2.1, os testes da seção 7, a escolha dos parâmetros de rate limit do registro, a instalação do schema `prototype-first` na abertura da segunda change (F2) e a verificação da oferta gratuita ainda precisam ocorrer. Não são decisões em aberto de sessão, topologia ou fase das fotos, nem resultados concluídos. Esta revisão não autoriza implementação, provisionamento, produção nem aprovação automática da SDD.
+**Condições de execução:** a verificação de versões, os parâmetros do registro e os testes aplicáveis da F1 têm resultados na evidência de 22/11. Cenários de fases posteriores da seção 7, instalação de `prototype-first` na F2 e verificação da oferta gratuita continuam futuros. Implementação local não autoriza produção, provisão externa ou aprovação automática da SDD.
 
 ## 1. Resumo, objetivos e limites
 
@@ -41,7 +43,7 @@ Não existem metas aprovadas de carga, latência, disponibilidade, cobertura per
 
 ## 2. Registro central de decisões
 
-Os identificadores DT-01 a DT-15 mantêm os temas já usados neste TDD e não foram renumerados. O texto é o que passa a valer. DT-16 a DT-21 registram decisões desta revisão que não cabiam no enunciado anterior sem esconder o tema. Nenhuma decisão abaixo descreve componente instalado, recurso Azure criado ou teste executado.
+Os identificadores DT-01 a DT-21 foram preservados. A tabela registra decisões de desenho; não substitui evidência de instalação ou testes. As atualizações da F1 estão datadas; não há recurso Azure criado.
 
 **Origem:** “PRD” é requisito do documento de produto; “entrevista anterior” é decisão já registrada no desenho de 09/11/2026 e mantida; “revisão de 19/11/2026” é a adoção, como alvo, das decisões de plataforma desta reorganização.
 
@@ -66,12 +68,16 @@ Os identificadores DT-01 a DT-15 mantêm os temas já usados neste TDD e não fo
 | DT-17 | Segredos | **Definida como alvo:** parâmetros não sensíveis em `appsettings`; User Secrets em Development; App Settings na publicação. Arquivo versionado não contém segredo. | Revisão de 19/11/2026 | Sem serviço adicional de cofre como dependência obrigatória da v1. User Secrets não é mecanismo de publicação. |
 | DT-18 | Compose e migrations | **Definida como alvo:** `compose.yml` na raiz, somente infraestrutura, com SQL Server Developer, healthcheck e volume nomeado. API e Angular no host. `Database.MigrateAsync()` apenas em Development. Fora de Development, sem migration automática. | Revisão de 19/11/2026 | Não há seed de contas sintéticas de funcionários. O RF-01 exige o registro público da empresa. A conta administrativa local do Developer não é reutilizada fora de Development. |
 | DT-19 | Login | **Definida, somente no login:** senha mínima de 8 caracteres, bloqueio de 15 minutos após 5 falhas e 5 requisições por minuto por IP, sem fila. Erro genérico e `429` quando a taxa do login estoura. | Revisão de 19/11/2026 | O registro persiste a senha pelo mesmo Identity e não conclui com senha que essa política rejeita. Bloqueio, janela e taxa por IP do login não são o rate limit do registro. Sem exigência extra de composição de senha. |
-| DT-20 | Rate limit do registro | **Obrigatória; parâmetros ainda não escolhidos:** o registro público e não autenticado tem rate limit. Limite, janela, identificação e mecanismo ficam para a SDD da F1. | Revisão de 19/11/2026 e RF-01 | Os números da DT-19 não são copiados para esse endpoint. A F1 não pode sair sem a proteção especificada e verificada. |
+| DT-20 | Rate limit do registro | **Obrigatória; materializada na SDD da F1:** janela fixa configurável de 3 requisições por 10 minutos por IP remoto, sem fila, em memória na instância local; `429` e `Retry-After`. | Revisão de 19/11/2026 e RF-01; parâmetros da SDD F1 | Independente dos números da DT-19. Não é limitação distribuída nem há proxy confiável presumido no ambiente local. |
 | DT-21 | Workflow das fases | **Definida para o trabalho futuro:** cada fase nasce em feature branch. A primeira change, a F1, usa o workflow `spec-driven`: proposal, specs, design e tasks antes do código. A partir da segunda change, a F2, o schema passa a `prototype-first`, no mesmo momento de transição do Gestão de Estacionamento: proposal, specs, protótipo quando houver tela, design e tasks antes do código. Evidência e checklist só depois da verificação. Sync e archive no fechamento. | Revisão de 19/11/2026 | O [openspec/config.yaml](../openspec/config.yaml) permanece em `spec-driven` na F1. O schema `prototype-first` ainda não foi instalado. A instalação e a seleção nesse arquivo ocorrem na abertura da F2. Esta revisão não altera esse arquivo. |
 
 ### 2.1. Seleção de versões e reprodutibilidade
 
 A combinação-alvo é Angular 22 e .NET 10. Antes de implementar, verificar a disponibilidade e a compatibilidade dessas versões, selecionar os patches e a versão de Node, e registrar SDKs, manifests e lockfiles. A combinação precisa passar por restore, build e testes locais na abertura da implementação. Esta revisão não fixa patch, Node nem lockfile e não copia esses valores de outro repositório, de badge ou de README. Atualizações futuras repetem a verificação. Intervalo de versão e badge não demonstram compatibilidade.
+
+**Seleção verificada em 22/11/2026:** SDK 10.0.404 (`global.json`), runtime e pacotes ASP.NET Core/EF Core 10.0.15, IdentityModel JWT 8.19.2 (mínimo exigido pelas dependências atualizadas), MSTest 4.0.2; Angular/CLI 22.3.0, Node 24.21.0, TypeScript 6.0.3, RxJS 7.8.2 e Vitest 5.1.1 resolvidos no lock. Angular 22 aceita Node `^24.15.0`, TS `>=6.0.0 <6.1.0` e RxJS `^7.4.0`, conforme [matriz oficial](https://angular.dev/reference/versions). Lockfiles NuGet por projeto e npm versionados em `app/`. `System.Security.Cryptography.Pkcs` 10.0.15 fixa a correção da vulnerabilidade transitiva; auditorias de dependências são evidência pontual, não garantia permanente. A ferramenta EF instalada 10.0.9 gerou as migrations com aviso de patch inferior; aplicação e testes utilizam EF Core 10.0.15.
+
+**DT-02 materializada na F1, com autorização explícita em 22/11/2026:** Tailwind CSS e `@tailwindcss/postcss` 4.3.5, PostCSS 8.5.33 e o pacote oficial standalone `@lucide/angular` 1.77.0 (peers Angular >=17). Controles de acesso continuam nativos/próprios; ícones decorativos não substituem rótulos. Build, testes, auditoria e fluxo visual foram repetidos após a instalação.
 
 ## 3. Arquitetura e organização
 
@@ -90,6 +96,12 @@ O diagrama é a topologia-alvo da F6, não um inventário de recursos existentes
 
 Dependências de compilação: Application → Domain; Infrastructure → Application e Domain; Api → Application, e Infrastructure apenas na composição. Domain não referencia EF, Identity, HTTP, SDK S3 ou Angular. A Api não contém regra de cálculo.
 
+**Diretriz de organização modular interna (todas as fases):** a arquitetura em quatro camadas permanece a fronteira estrutural do backend, e cada camada deve agrupar internamente os arquivos por módulo de negócio ou transversalidade, usando os módulos desta seção: Acesso, Frota e preços, Pessoas, Locações, Fotos e Transversal. Um módulo representa uma unidade de responsabilidade dentro do monólito; não representa um projeto, processo ou unidade de deploy separado.
+
+Quando uma funcionalidade existir em mais de uma camada, cada camada deve refletir o módulo somente com os arquivos que pertencem à sua responsabilidade: a Api concentra endpoints, contratos HTTP e composição de entrada; a Application concentra casos de uso, serviços de aplicação, portas e abstrações; o Domain concentra entidades, regras e comportamentos; e a Infrastructure concentra persistência, Identity, implementações e integrações técnicas. Dependências entre camadas continuam obedecendo ao fluxo definido acima, sem dependência lateral para contornar a arquitetura.
+
+Pastas de módulo são criadas conforme houver código real; não se criam pastas, arquivos vazios ou placeholders para módulos ainda não implementados. Arquivos transversais permanecem em Transversal quando não pertencerem a um único módulo. Os namespaces CLR acompanham a organização quando isso não alterar nomes de tipos persistidos; em Domain e Infrastructure, a estabilidade do namespace pode prevalecer para não modificar o modelo EF, e a pasta de módulo continua organizando o arquivo. A organização deve evitar controllers inchados, concentração de funcionalidades distintas em estruturas genéricas e abstrações que escondam a responsabilidade, a transação, o lock ou o contrato específico do caso de uso. A diretriz vale para todas as fases seguintes e não altera o escopo de nenhuma fase.
+
 | Módulo | Responsabilidade | RF e fase |
 | --- | --- | --- |
 | Acesso | Registro atômico de empresa e conta, login, refresh, consulta de sessão, logout, CORS e tenant | RF-01 a RF-03; F1 |
@@ -101,7 +113,7 @@ Dependências de compilação: Application → Domain; Infrastructure → Applic
 
 Um `DbContext` derivado de `IdentityDbContext` reúne identidade e dados do monólito, para o registro da empresa e da conta na mesma transação. A Application depende de portas específicas e de unidade de trabalho. Não usar repositório genérico que esconda lock ou force materialização. O relógio de teste usa `TimeProvider`.
 
-### 3.1 Organização proposta, não criada
+### 3.1 Organização interna do backend
 
 ```text
 compose.yml                      infraestrutura local; ferramenta do repositório, não publicação
@@ -109,28 +121,32 @@ app/
   backend/
     Locadora.slnx
     src/Locadora.Domain/
+      Modulos/Acesso/             entidades e comportamentos de Acesso existentes
+      Transversal/                entidades e tipos transversais existentes
     src/Locadora.Application/
+      Modulos/Acesso/             casos de uso, políticas e portas de Acesso existentes
+      Transversal/                portas e abstrações transversais existentes
     src/Locadora.Infrastructure/
+      Modulos/Acesso/             Identity e implementações técnicas de Acesso existentes
+      Transversal/                DbContext, relógio e contexto de empresa existentes
     src/Locadora.Api/
-    tests/Locadora.Domain.Tests/
-    tests/Locadora.Application.Tests/
+      Modulos/Acesso/             controller e contratos HTTP de Acesso existentes
+    tests/Locadora.UnitTests/     políticas e infraestrutura pura sem SQL
     tests/Locadora.IntegrationTests/
     global.json
-    Directory.Packages.props
+    Directory.Build.props        geração dos lockfiles NuGet
   frontend/
-    src/app/core/                 sessão em memória, HTTP e erros
-    src/app/shared/               controles acessíveis e formatação
-    src/app/features/             acesso, frota, pessoas, preços e locações
+    src/app/                      acesso, sessão, interceptor e guard da F1
     package.json
     package-lock.json
-  e2e/
+  e2e/fase1.playwright.js         cenário executável pelo Playwright do harness
 docs/prd.md
 docs/tdd.md
 openspec/                        spec-driven na F1; prototype-first a partir da F2, ainda não instalado
 .github/                         governança; CI não está presumida
 ```
 
-Nada dessa árvore de aplicação foi criado por este documento. Migrations pertencem à Infrastructure. O `compose.yml` fica na raiz porque é ferramenta de infraestrutura do repositório; código, testes e configuração da aplicação continuam em `app/`. A porta do SQL é publicada só no loopback.
+A árvore acima resume a F1; módulos futuros não são criados antecipadamente. Novos módulos só aparecem nas camadas em que houver arquivos reais. Migrations pertencem à Infrastructure e permanecem em `Migrations/`. O `compose.yml` fica na raiz porque é ferramenta de infraestrutura do repositório; código, testes e configuração da aplicação continuam em `app/`. A porta do SQL é publicada só no loopback. O controller sintético de prova do tenant pertence somente ao projeto de integração e é adicionado à API apenas pela fixture; não é endpoint da aplicação entregue. O recurso sintético no schema não representa cadastro de fase posterior.
 
 ### 3.2 Frontend
 
@@ -275,7 +291,7 @@ Os contratos abaixo são desenho. Não são endpoints existentes. A especificaç
 - Listas: `page`, `pageSize`, filtros permitidos e ordenação estável com ID no desempate. Envelope `items`, `page`, `pageSize` e `total`. Padrão técnico inicial de 20 itens, máximo de 100, sujeito a medição e sem ser SLO.
 - GET de entidade mutável devolve `ETag` opaco derivado de `rowversion`. PUT, DELETE e devolução exigem `If-Match`. Ausência: 428. Versão diferente: 412.
 - ProblemDetails com `status`, `title`, `code`, `traceId` e, quando couber, mapa `errors` por campo. Sem documento completo, senha, stack trace ou SQL.
-- 400 formato ou validação; 401 sessão ou token inválido; 403 política de autorização; 404 inexistente ou de outra empresa; 409 vínculo, disponibilidade, estado ou chave idempotente; 413 arquivo excedido; 415 mídia não aceita; 429 taxa do login ou, no registro, o limite que a SDD da F1 definir; 503 dependência indisponível. Criação 201 com `Location`; edição 200; exclusão lógica 204.
+- 400 formato ou validação; 401 sessão ou token inválido; 403 política de autorização; 404 inexistente ou de outra empresa; 409 vínculo, disponibilidade, estado ou chave idempotente; 413 arquivo excedido; 415 mídia não aceita; 429 taxa de autenticação/registro; 503 dependência indisponível. Criação 201 com `Location`; edição 200; exclusão lógica 204. **Exceção autorizada pelo solicitante em 22/11/2026:** o registro público retorna 201 com `empresaId` e `usuarioId`, sem `Location`, pois a F1 não define uma rota de consulta da conta criada; não emite tokens nem abre sessão.
 - `Idempotency-Key` obrigatória na criação do aluguel e na devolução. Unicidade por empresa, ator e operação. O hash canônico do comando inclui o recurso e não inclui o JWT. A mesma chave com o mesmo comando devolve o resultado original. Outra entrada na mesma chave devolve 409. Guardar referência ao resultado, sem duplicar dado pessoal num cache de resposta.
 - Verificar replay idempotente antes do ETag corrente. Só operação nova exige a precondição atual. O registro idempotente e o efeito de negócio usam o mesmo commit. Timeout depois do commit resolve-se repetindo a mesma chave.
 - Não há cookie de autenticação e não há endpoint antiforgery. Rotas de negócio aceitam bearer. Login, refresh, consulta de sessão e logout usam o prefixo `/api/v1/session`. O registro público fica ao lado desse prefixo.
@@ -288,7 +304,7 @@ O registro público tem rate limit obrigatório (DT-20). Os números do login n�
 
 | Rotas | Entradas e saídas principais | Regras |
 | --- | --- | --- |
-| `POST /api/v1/registro` | username, email e password → empresa e conta criadas | Público, não autentica e não pede dado empresarial além do RF-01. Rate limit obrigatório, com parâmetros da SDD da F1. Username único na plataforma |
+| `POST /api/v1/registro` | username, email e password → 201 com empresaId e usuarioId, sem Location | Público, não autentica e não pede dado empresarial além do RF-01. Rate limit da SDD F1. Username único na plataforma. Usuário e e-mail respeitam as colunas de 256 caracteres já definidas pelo Identity; excesso é rejeitado antes da persistência |
 | `POST /api/v1/session/login` | username e password → JWT, refresh opaco, expiração e dados mínimos | Erro genérico. Nova sessão absoluta de 8 horas. Aplica a DT-19. Resposta `no-store` |
 | `POST /api/v1/session/refresh` | refresh no corpo JSON → novo JWT e refresh rotacionado | O refresh não viaja em cookie nem em URL. Não depende de JWT ainda válido. Reúso revoga a família |
 | `GET /api/v1/session` | identidade mínima da conta e da empresa | Bearer, sessão ativa e versão de acesso conferida no SQL |
@@ -414,7 +430,7 @@ Cada versão de chave tem 32 bytes de `RandomNumberGenerator`, em Base64 na conf
 
 A sessão e a família duram 8 horas a partir do login, sem extensão deslizante. O refresh é opaco, de alta entropia, só em memória no cliente e só como hash no SQL, ligado à sessão, à família, à validade e ao estado de uso. A renovação confere conta, sessão e versão, consome o refresh e emite outro na mesma transação. Cada JWT termina no menor prazo entre 15 minutos e o fim das 8 horas. Reúso de refresh consumido revoga a família. O cliente serializa uma renovação por vez na aba atual. Se a resposta se perder, reautenticar, em vez de repetir o refresh ou o comando de negócio às cegas. Não há sessão entre abas. Recarga exige novo login.
 
-Contratos: `POST /api/v1/session/login`, `POST /api/v1/session/refresh` com o refresh no corpo JSON, `GET /api/v1/session` e `POST /api/v1/session/logout`. Respostas `no-store`. Erros sem enumerar conta, sem refletir token e sem refletir senha. O refresh prova o segredo opaco e a sessão válida; não depende de JWT ainda não expirado. Limitar abuso do refresh sem fila e sem recuperação automática de conta.
+Contratos: `POST /api/v1/session/login`, `POST /api/v1/session/refresh` com o refresh no corpo JSON, `GET /api/v1/session` e `POST /api/v1/session/logout`. Respostas `no-store`. Erros sem enumerar conta, sem refletir token e sem refletir senha. O refresh prova o segredo opaco e a sessão válida; não depende de JWT ainda não expirado. Limitar abuso do refresh sem fila e sem recuperação automática de conta. Detalhamento autorizado pelo solicitante em 22/11/2026: janela fixa configurável de 30 requisições por minuto por IP, sem fila, com `429`, `Retry-After` e erro genérico, independente de registro e login.
 
 CORS não impede cliente que não seja o navegador. A API aplica JWT, sessão e tenant em qualquer origem. Testar assinatura, emissor, audiência, expiração, `kid`, revogação, reúso de refresh, recarga sem sessão, preflight entre as duas origens e SQL indisponível. Repetir a superfície real na F6, antes de tratar a publicação como concluída.
 
@@ -434,11 +450,11 @@ O Compose não lê User Secrets. A senha exigida pela imagem entra no processo d
 
 **Ordem em Development:** validar ambiente, conexão, chaves JWT e origens, sem imprimir segredo; subir o SQL e esperar o healthcheck; iniciar a API no host; executar `Database.MigrateAsync()`; só depois aceitar HTTP. Não há seed de funcionários entre a migration e o tráfego. A primeira empresa nasce no `POST /api/v1/registro`. Falha de conexão, configuração ou migration interrompe a inicialização. Não usar `EnsureCreated` nem migration destrutiva como fallback. Fora de Development, a API não aplica migration. Testing prepara o banco pela fixture, em instância ou catálogo isolado, sem User Secrets pessoais e sem o volume de Development. Publicação aplica migrations em etapa controlada, com credencial de schema, e o runtime segue sem DDL.
 
-O fluxo local ainda não foi executado. Evidência de Compose, healthcheck, persistência e ausência de segredo só entra no checklist da F1 depois da execução.
+O fluxo local da F1 foi executado em SQL exclusivo de verificação, sem alterar o volume de Development preexistente. O checklist referencia a evidência de 22/11; não se presume execução contra o ambiente de outra pessoa.
 
 ## 7. Qualidade e verificação
 
-A matriz é plano. Nenhum teste de aplicação foi executado nesta revisão. Resultados só podem ser registrados depois da execução, com data, comandos, ambiente, resultado e limitação. CI não está presumida e não substitui a verificação local.
+A matriz é o plano da v1. Resultados da F1 são registrados separadamente na evidência de 22/11, com comandos, ambiente, resultado e limitações. Cenários de fases posteriores não foram executados. CI não está presumida e não substitui a verificação local.
 
 | Nível | Verificações mínimas |
 | --- | --- |
@@ -478,7 +494,7 @@ A tabela usa **☐ não concluído / ☑ concluído**. Todos os itens nascem des
 
 | Fase | Escopo e entregáveis | Dependência / critério de saída | Checklist de conclusão e evidências |
 | --- | --- | --- | --- |
-| **F1 — Fundação e infraestrutura local** | Solução em `app/`, Compose só de SQL, User Secrets, duas origens, registro da empresa, sessão da seção 6.2, CORS, tenant, rate limit obrigatório do registro com parâmetros definidos na SDD, MSTest e migrations só em Development. RF-01 a RF-03 e CA-01. Sem foto, sem CI e sem Azure. | **Início da implementação.** CA-01 em SQL Server real, inclusive revogação depois do logout, falha fechada e empresas A/B. Nenhuma migration automática fora de Development. O registro não entra sem o rate limit especificado na SDD. | ☐ **F1-01:** camadas, compatibilidade da seção 2.1 e lockfiles.<br>☐ **F1-02:** `compose.yml` de infraestrutura, healthcheck, volume, porta em loopback e separação de teste; API e Angular no host.<br>☐ **F1-03:** User Secrets em Development, arquivos versionados sem segredo e chaves JWT de 32 bytes.<br>☐ **F1-04:** `POST /api/v1/registro` atômico e rate limit com limite, janela, identificação e mecanismo escolhidos na SDD.<br>☐ **F1-05:** login, refresh no corpo, consulta e logout; 15 minutos, 8 horas, memória, sem cookie e sem sessão após recarga.<br>☐ **F1-06:** CORS por origem exata, sem `AllowAnyOrigin` e sem `AllowCredentials`.<br>☐ **F1-07:** `EmpresaId` resolvido no servidor.<br>☐ **F1-08:** MSTest, `WebApplicationFactory` e SQL Server real; `MigrateAsync` só em Development.<br>☐ **F1-09:** CA-01, reúso após logout e SQL indisponível.<br>**Evidências/limitações:** a registrar depois da execução, com data, comandos, ambiente, resultado e limitação. |
+| **F1 — Fundação e infraestrutura local** | Solução em `app/`, Compose só de SQL, User Secrets, duas origens, tela pública de registro, sessão da seção 6.2, CORS, tenant, rate limits, MSTest e migrations da aplicação só em Development. RF-01 a RF-03 e CA-01 no recorte local. Sem foto, CI ou Azure. | **Implementação local verificada em 22/11/2026; revisão e integração do PR são etapas separadas.** CA-01 em SQL real, revogação, falha fechada e empresas A/B. Registro não exige nome empresarial nem autentica automaticamente. Não é v1 completa, homologação ou produção. | ☑ **F1-01:** camadas, compatibilidade, lockfiles e DT-02.<br>☑ **F1-02:** Compose, imagem fixa, healthcheck, persistência após restart, loopback e teste separado; API/Angular no host.<br>☑ **F1-03:** User Secrets somente em Development, configuração externa e chaves de 32 bytes, sem segredo versionado.<br>☑ **F1-04:** registro atômico e rate limit 3/10 minutos/IP sem fila.<br>☑ **F1-05:** login, refresh no corpo, consulta e logout; 15 minutos, oito horas, memória, sem cookie/persistência após recarga.<br>☑ **F1-06:** CORS exato sem credenciais/curinga.<br>☑ **F1-07:** EmpresaId server-side, filtros, guarda de escrita e FKs.<br>☑ **F1-08:** MSTest/WebApplicationFactory/SQL real; migrations automáticas da aplicação só em Development.<br>☑ **F1-09:** CA-01 no recorte F1, reúso após logout e SQL indisponível.<br>☑ **F1-10:** `/registro` com Signal Forms, mensagens, foco e navegação com login.<br>**Evidências/limitações:** [registro de 22/11/2026](../openspec/changes/archive/2026-11-22-fase-1-fundacao-infraestrutura-local/evidencias.md), incluindo impacto da rodada inicial no banco Development, correções, comandos e limites. |
 | **F2 — Cadastros** | Grupos, três planos, dados do veículo, PF e PJ, condutores, vínculos, taxas, dois seguros (RF-12) e combustíveis por vigência. Jornada J-02. Sem upload nem gerenciamento de foto. Unicidade filtrada aos ativos. | **Depende da F1.** CA-02 a CA-05 no que não exige aluguel. Bloqueio por aluguel aberto prova-se quando o contrato existir. Veículo grava sem foto. | ☐ **F2-01:** grupos e modalidades Diário, Controlado e Livre.<br>☐ **F2-02:** dados do veículo, sem rota de foto.<br>☐ **F2-03:** clientes, vínculos, condutores e CNH coerente.<br>☐ **F2-04:** taxas, seguros e combustível append-only.<br>☐ **F2-05:** placa, CPF e CNPJ únicos só entre ativos; registro novo não herda o histórico do excluído.<br>☐ **F2-06:** listas, erros de campo e Signal Forms dos cadastros.<br>**Evidências/limitações:** a registrar depois da execução, com data, comandos, ambiente, resultado e limitação. |
 | **F3 — Contratação e cálculo** | Cálculo, snapshots, estimativa, criação e edição de Em aberto, disponibilidade e idempotência. Jornada J-03. RN-01 a RN-06 e RN-09 na contratação. | **Depende da F2.** CA-06 e CA-07. Um aluguel aberto por veículo. Preço mantido preservado. Sem devolução final, sem foto e sem publicação. | ☐ **F3-01:** RN-01 a RN-06, caução separada e estimativa incompleta quando couber.<br>☐ **F3-02:** contratação atômica, índice de veículo aberto e idempotência.<br>☐ **F3-03:** edição com preço mantido e preço novo; saída imutável.<br>☐ **F3-04:** snapshots e bloqueio de cadastro com aluguel aberto.<br>☐ **F3-05:** CA-06 e CA-07, inclusive concorrência.<br>**Evidências/limitações:** a registrar depois da execução, com data, comandos, ambiente, resultado e limitação. |
 | **F4 — Devolução e operação local** | Prévia, fechamento, multa, combustível, histórico, ocultação e jornadas locais. RN-01 a RN-09. | **Depende da F3.** CA-08, CA-09 e CA-12 no ambiente local. Final imutável. Sem foto e sem publicação. Esta fase não é a v1 pronta. | ☐ **F4-01:** prévia e devolução atômicas.<br>☐ **F4-02:** multa, combustível vigente e componentes de CA-08.<br>☐ **F4-03:** demonstrativo final imutável e ocultação sem apagar contrato.<br>☐ **F4-04:** CA-09 e CA-12.<br>☐ **F4-05:** J-01 a J-05 por teclado no local, sem foto.<br>**Evidências/limitações:** a registrar depois da execução, com data, comandos, ambiente, resultado e limitação. |
@@ -491,8 +507,8 @@ PRs de implementação serão pequenos, na feature branch da fase, para a `main`
 
 | Item | Situação | Condição de resolução |
 | --- | --- | --- |
-| Patches, Node e lockfiles | Não bloqueiam este desenho. Bloqueiam código que dependa de compatibilidade ainda não verificada | Seção 2.1, na abertura da implementação. Sem copiar versão de outro repositório |
-| Rate limit do registro | A proteção é obrigatória e os parâmetros não foram escolhidos | SDD da F1 define limite, janela, identificação e mecanismo, e a F1 só fecha com essa proteção verificada |
+| Patches, Node e lockfiles | Verificados para a F1 em 22/11/2026, conforme seção 2.1 e evidência; repetir a verificação em atualizações | Não inferir compatibilidade futura a partir desta execução |
+| Rate limit do registro | Especificado e testado na F1: janela fixa 3/10 minutos por IP, sem fila | Limitação em memória da instância local; distribuição exige revisão técnica futura |
 | Oferta gratuita | Topologia definida e nenhum recurso criado | F6 confirma a conta. Se não couber, parar e revisar, sem plano pago automático |
 | R2 e binários nativos | Provedor escolhido para a F5. Sem conta, bucket ou credencial verificados. Suporte do SDK e do SkiaSharp no runtime-alvo ainda não foi ensaiado | F5, em bucket isolado, antes de tratar a foto como pronta |
 | Serialização por empresa | Trade-off de consistência no início local | Medir só quando houver contexto aprovado. Mudar a granularidade mantendo testes de corrida e índices |
@@ -547,4 +563,4 @@ As decisões de plataforma estão neste arquivo. Os links orientam a verificaç�
 - [Planos do App Service](https://learn.microsoft.com/azure/app-service/overview-hosting-plans), [cotas do Static Web Apps](https://learn.microsoft.com/azure/static-web-apps/quotas), [oferta gratuita do Azure SQL](https://learn.microsoft.com/azure/azure-sql/database/free-tier) e [identidade gerenciada com Azure SQL](https://learn.microsoft.com/azure/app-service/tutorial-connect-msi-sql-database).
 - [HMAC-SHA-256 e tamanho de chave — RFC 7518, seção 3.2](https://www.rfc-editor.org/rfc/rfc7518#section-3.2).
 
-Revisão desta entrega documental: conferidos os grupos de requisitos do PRD, as quatro decisões de Signal Forms, fase das fotos, unicidade entre ativos e rate limit do registro, a retirada da recuperação de conta das entregas da F6 e a ausência da branch inexistente no cabeçalho. Diagramas não foram renderizados. Não houve teste, build, lint, CI, provisionamento, change OpenSpec, commit ou PR. `AGENTS.md`, `docs/prd.md` e `openspec/config.yaml` não foram alterados.
+Registro histórico da revisão documental de 19/11: conferidos os requisitos e decisões; diagramas não foram renderizados e naquela entrega não houve testes, build, CI, provisionamento ou implementação. Resultados posteriores da F1 pertencem à atualização de 22/11 e à sua evidência. `AGENTS.md` e `openspec/config.yaml` permanecem sem alteração.
