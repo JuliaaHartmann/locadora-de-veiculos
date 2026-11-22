@@ -54,6 +54,9 @@ obj/
 *.suo
 
 # Segredos locais
+/.env
+/.env.*
+!/.env.example
 app/infra/.env
 app/backend/**/chave*.pem
 
