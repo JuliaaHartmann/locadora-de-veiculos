@@ -25,11 +25,27 @@ Configure pelo Secret Manager, somente para `src/Locadora.Api`, os seguintes val
 - `Autenticacao:Jwt:Chaves:v1`: Base64 de 32 bytes de `RandomNumberGenerator`.
 - A versão ativa, emissor e audiência não sensíveis ficam em `appsettings.json`.
 
+O nome da entrada deve corresponder à versão ativa: `v1` exige `Autenticacao:Jwt:Chaves:v1`. A antiga entrada `Jwt:ChaveAtiva` não é lida pela API. Na migração local, preserve o valor de uma chave antiga válida de 32 bytes no novo nome; gere material novo somente quando não houver chave existente, sem imprimir o valor.
+
 Use entrada segura/interativa ou JSON pelo stdin do Secret Manager; não ponha valores secretos em argumentos, histórico, `.env` versionado ou logs. User Secrets não cifram o armazenamento local e não são configuração de publicação. Não imprima a lista de segredos em evidências.
 
-O Compose **não lê User Secrets**: forneça a mesma senha local em `MSSQL_SA_PASSWORD` no processo que chama `docker compose up -d` na raiz. Não altere a senha de um volume existente para tentar corrigir erro de conexão. `docker compose config --quiet` valida sem imprimir a configuração expandida.
+O Compose **não lê User Secrets**: a senha do SQL fica em `.env` na raiz, ignorado pelo Git, com a única entrada `MSSQL_SA_PASSWORD`. `.env.example` é um modelo sem senha real. JWT e connection string permanecem somente nos User Secrets; a senha SQL do `.env` deve ser igual à da conexão. Não altere a senha de um volume existente para tentar corrigir erro de conexão.
 
-Depois do healthcheck:
+O Compose lê `.env` automaticamente. Variáveis já exportadas no terminal têm precedência: uma `MSSQL_SA_PASSWORD` antiga no processo pode sobrescrever o arquivo. A API no host **não lê `.env`** e não há biblioteca dotenv. Valide na raiz com `docker compose config --quiet`, sem imprimir a configuração expandida.
+
+Depois de preencher o `.env`, inicie o SQL na raiz:
+
+```powershell
+docker compose up -d
+```
+
+Depois do healthcheck, em `app/backend/src/Locadora.Api`:
+
+```powershell
+dotnet run
+```
+
+O perfil HTTP usa `Development` e `http://localhost:5000`, a mesma porta configurada no frontend. Para execução explícita a partir de `app/backend`, sem perfil:
 
 ```powershell
 $env:ASPNETCORE_ENVIRONMENT = 'Development'
