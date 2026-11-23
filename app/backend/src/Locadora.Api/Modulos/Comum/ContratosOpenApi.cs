@@ -21,17 +21,22 @@ internal static class ContratosOpenApi
                 schema.Pattern = @"^[0-9]{1,9}(\.[0-9]{1,3})?$";
                 schema.Description = "Decimal textual positivo, até 3 casas; de 0.001 a 999999999.999 litros.";
             }
+            if (nome is "parcelasConhecidas" or "valorPlano" or "caucao" or "valor" &&
+                context.JsonTypeInfo.Type == typeof(string))
+                schema.Pattern = @"^[0-9]+\.[0-9]{2}$";
             return Task.CompletedTask;
         });
         options.AddOperationTransformer(async (operation, context, ct) =>
         {
             var rota = context.Description.RelativePath ?? "";
             if (!new[] { "grupos", "planos", "veiculos", "clientes", "condutores",
-                    "taxas-servicos", "configuracoes" }
+                    "taxas-servicos", "configuracoes", "alugueis" }
                 .Any(modulo => rota.StartsWith($"api/v1/{modulo}", StringComparison.Ordinal)))
                 return;
 
             var problema = await context.GetOrCreateSchemaAsync(typeof(ProblemDetails), cancellationToken: ct);
+            var locacao = rota.StartsWith("api/v1/alugueis", StringComparison.Ordinal);
+            var previa = rota.EndsWith("/estimativas", StringComparison.Ordinal);
             foreach (var (codigo, descricao) in new[]
             {
                 ("400", "Dados inválidos; errors associa mensagens aos campos."),
@@ -43,6 +48,9 @@ internal static class ContratosOpenApi
                 ("503", "Dependência SQL indisponível."),
             })
             {
+                if (locacao && (((codigo is "412" or "428") && context.Description.HttpMethod != "PUT") ||
+                    ((codigo is "404" or "409") && rota == "api/v1/alugueis" && context.Description.HttpMethod == "GET")))
+                    continue;
                 operation.Responses![codigo] = new OpenApiResponse
                 {
                     Description = descricao,
@@ -61,6 +69,11 @@ internal static class ContratosOpenApi
                     parametro.Required = true;
                     parametro.Description = "ETag forte, entre aspas, obtido na última leitura do recurso.";
                 }
+                if (parametro.Name == "Idempotency-Key")
+                {
+                    parametro.Required = true;
+                    parametro.Description = "Chave de criação: reenvie a mesma chave somente para a mesma intenção.";
+                }
                 if (parametro.Name is "page" or "pageSize")
                     parametro.Description = parametro.Name == "page"
                         ? "Página a partir de 1; padrão 1."
@@ -69,6 +82,7 @@ internal static class ContratosOpenApi
             foreach (var resposta in operation.Responses!.Where(x => x.Key is "200" or "201"))
             {
                 if (resposta.Value is not OpenApiResponse dadosResposta) continue;
+                if (locacao && previa) continue;
                 if (context.Description.HttpMethod == "GET" &&
                     !rota.Contains("{id}") && !rota.Contains("{tipo}")) continue;
                 if (rota.EndsWith("/historico", StringComparison.Ordinal)) continue;

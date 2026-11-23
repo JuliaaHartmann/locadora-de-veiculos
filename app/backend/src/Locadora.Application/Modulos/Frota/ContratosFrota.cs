@@ -68,8 +68,9 @@ public interface IPlanoService
 
 public interface IVeiculoService
 {
-    Task<Pagina<VeiculoResumo>> ListarAsync(Guid? grupoId, int? page, int? pageSize, CancellationToken ct);
-    Task<RespostaComVersao<VeiculoResumo>?> ObterAsync(Guid id, CancellationToken ct);
+    Task<Pagina<VeiculoResumo>> ListarAsync(Guid? grupoId, int? page, int? pageSize, CancellationToken ct,
+        bool disponiveis = false, Guid? aluguelAtualId = null);
+    Task<RespostaComVersao<VeiculoResumo>?> ObterAsync(Guid id, CancellationToken ct, bool paraEdicao = false);
     Task<RespostaComVersao<VeiculoResumo>> CriarAsync(ComandoVeiculo comando, CancellationToken ct);
     Task<RespostaComVersao<VeiculoResumo>> EditarAsync(Guid id, ComandoVeiculo comando, string? ifMatch, CancellationToken ct);
     Task ExcluirAsync(Guid id, string? ifMatch, CancellationToken ct);

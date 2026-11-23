@@ -17,8 +17,8 @@ public sealed class TaxasServicosController(ITaxaService servico) : ControllerBa
 
     [HttpGet("{id:guid}")]
     [ProducesResponseType<TaxaResumo>(200)]
-    public async Task<IActionResult> Obter(Guid id, CancellationToken ct) =>
-        RespostasHttp.ComVersao(Response, await servico.ObterAsync(id, ct));
+    public async Task<IActionResult> Obter(Guid id, [FromQuery] bool paraEdicao, CancellationToken ct) =>
+        RespostasHttp.ComVersao(Response, await servico.ObterAsync(id, ct, paraEdicao));
 
     [HttpPost]
     [ProducesResponseType<TaxaResumo>(201)]

@@ -101,8 +101,8 @@ public sealed class CondutoresController(ICondutorService servico) : ControllerB
 {
     [HttpGet]
     [ProducesResponseType<Pagina<CondutorResumo>>(200)]
-    public async Task<IActionResult> Listar([FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken ct) =>
-        Ok(await servico.ListarAsync(page, pageSize, ct));
+    public async Task<IActionResult> Listar([FromQuery] int? page, [FromQuery] int? pageSize, [FromQuery] Guid? clienteId, CancellationToken ct) =>
+        Ok(await servico.ListarAsync(page, pageSize, ct, clienteId));
 
     [HttpGet("{id:guid}")]
     [ProducesResponseType<CondutorResumo>(200)]
