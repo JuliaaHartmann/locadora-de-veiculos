@@ -1,4 +1,4 @@
-param([switch]$Visual)
+param([switch]$Visual, [switch]$JornadaF3)
 $ErrorActionPreference = 'Stop'
 $id = [Guid]::NewGuid().ToString('N')
 $projeto = "locadora-f1-testes-$id"
@@ -49,20 +49,50 @@ try {
     try {
         dotnet test Locadora.slnx --configuration Release --no-restore --logger 'console;verbosity=minimal'
         if ($LASTEXITCODE -ne 0) { throw 'Testes backend falharam.' }
-        if ($Visual) {
+        if ($Visual -or $JornadaF3) {
+            if ($JornadaF3) {
+                foreach ($portaVisual in @(4201, 5001)) {
+                    $testePorta = [Net.Sockets.TcpListener]::new([Net.IPAddress]::IPv6Any, $portaVisual)
+                    try {
+                        $testePorta.Server.DualMode = $true
+                        $testePorta.Server.ExclusiveAddressUse = $true
+                        $testePorta.Start()
+                    } catch {
+                        throw "A porta visual $portaVisual já está indisponível. A jornada não usará um servidor preexistente."
+                    } finally { $testePorta.Stop() }
+                }
+            }
             $env:ASPNETCORE_ENVIRONMENT = 'Development'
             $env:Cors__Origens__0 = 'http://localhost:4201'
             $env:Cors__Origens__1 = 'http://127.0.0.1:4201'
             $temporario = Join-Path $env:LOCALAPPDATA 'Temp/opencode'
-            $api = Start-Process dotnet -ArgumentList @('run', '--project', 'src/Locadora.Api', '--configuration', 'Release', '--no-build', '--no-launch-profile', '--urls', 'http://localhost:5001') -PassThru -RedirectStandardOutput (Join-Path $temporario 'f1-api.out.log') -RedirectStandardError (Join-Path $temporario 'f1-api.err.log')
-            $frontend = Start-Process pwsh -WorkingDirectory (Join-Path $PSScriptRoot '../../frontend') -ArgumentList @('-NoProfile', '-Command', 'npm start -- --port 4201 --configuration verificacao-f1') -PassThru -RedirectStandardOutput (Join-Path $temporario 'f1-frontend.out.log') -RedirectStandardError (Join-Path $temporario 'f1-frontend.err.log')
+            $prefixo = if ($JornadaF3) { 'f3' } else { 'f1' }
+            $api = Start-Process dotnet -ArgumentList @('run', '--project', 'src/Locadora.Api', '--configuration', 'Release', '--no-build', '--no-launch-profile', '--urls', 'http://localhost:5001') -PassThru -RedirectStandardOutput (Join-Path $temporario "$prefixo-api.out.log") -RedirectStandardError (Join-Path $temporario "$prefixo-api.err.log")
+            $comandoFrontend = 'npm start -- --port 4201 --configuration verificacao-f1'
+            if ($JornadaF3) { $comandoFrontend += ' --prebundle=false --hmr=false --live-reload=false --watch=false' }
+            $frontend = Start-Process pwsh -WorkingDirectory (Join-Path $PSScriptRoot '../../frontend') -ArgumentList @('-NoProfile', '-Command', $comandoFrontend) -PassThru -RedirectStandardOutput (Join-Path $temporario "$prefixo-frontend.out.log") -RedirectStandardError (Join-Path $temporario "$prefixo-frontend.err.log")
             @{ frontendPid = $frontend.Id; apiPid = $api.Id; container = $container; volume = $volume } |
-                ConvertTo-Json | Set-Content (Join-Path $temporario 'f1-visual-processos.json')
-            Write-Host 'Ambiente visual exclusivo: http://localhost:4201 e API http://localhost:5001. Estado sem segredos em Temp/opencode/f1-visual-processos.json.'
-            $frontend.WaitForExit()
+                ConvertTo-Json | Set-Content (Join-Path $temporario "$prefixo-visual-processos.json")
+            Write-Host "Ambiente visual exclusivo: http://localhost:4201 e API http://localhost:5001. Estado sem segredos em Temp/opencode/$prefixo-visual-processos.json."
+            if ($JornadaF3) {
+                foreach ($url in @('http://localhost:5001/health', 'http://localhost:4201/')) {
+                    $pronto = $false
+                    for ($i = 0; $i -lt 50; $i++) {
+                        if ($api.HasExited -or $frontend.HasExited) { throw 'Processo da jornada encerrou antes de ficar pronto.' }
+                        try {
+                            $pronto = (Invoke-WebRequest $url -TimeoutSec 2).StatusCode -eq 200
+                            if ($pronto) { break }
+                        } catch { Start-Sleep -Seconds 1 }
+                    }
+                    if (!$pronto) { throw "Servidor da jornada não respondeu: $url." }
+                }
+                node (Join-Path $PSScriptRoot '../../e2e/fase3.playwright.cjs')
+                if ($LASTEXITCODE -ne 0) { throw 'A jornada F3 no navegador falhou.' }
+            } else { $frontend.WaitForExit() }
         }
     } finally { Pop-Location }
 } finally {
+    if ($JornadaF3 -and $frontend -and !$frontend.HasExited) { taskkill /PID $frontend.Id /T /F | Out-Null }
     if ($api -and !$api.HasExited) { taskkill /PID $api.Id /T /F | Out-Null }
     # Exclusivamente os recursos sintéticos criados por esta execução.
     docker compose @compose down --volumes 2>$null | Out-Null
