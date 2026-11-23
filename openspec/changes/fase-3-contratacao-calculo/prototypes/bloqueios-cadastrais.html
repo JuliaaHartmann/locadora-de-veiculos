@@ -1,0 +1,121 @@
+<!doctype html>
+<!--
+Source: ../proposal.md (What Changes), ../specs/alugueis/spec.md; ../../../specs/grupos-planos-veiculos/spec.md, ../../../specs/pessoas/spec.md, ../../../specs/precos-operacionais/spec.md
+Style: project slate/blue tokens, native system typography, plain inline CSS; no styling library.
+Covered:
+  - Isolamento, bloqueios cadastrais e auditoria / Bloquear cadastros protegidos por vínculo contratual -> existing inventory, plan, customer, driver and fee actions and blocked feedback.
+  - Gestão de veículos sem fotos na F2 / Edição ou exclusão bloqueada por aluguel aberto
+  - Configuração de planos por grupo / Exclusão de plano utilizado
+  - Cadastro de clientes pessoa física e jurídica / Exclusão bloqueada por aluguel aberto
+  - Cadastro de condutores e elegibilidade documental / Restrições durante aluguel aberto; CNH coerente entre cliente PF e condutor da mesma pessoa
+  - Gestão de taxas e serviços / Edição ou exclusão com aluguel aberto
+Not specified (presentational only): pre-existing card, table and form composition; case picker in the reviewer banner is not a product navigation control.
+Open questions: none.
+Only the changing feedback is simulated; pre-existing CRUD forms are shown as excerpts for protected fields, not replaced. No authentication, storage or back end.
+-->
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Bloqueios cadastrais — protótipo da Fase 3</title>
+<style>
+  :root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#f8fafc;color:#0f172a;line-height:1.5;--blue:#1d4ed8;--border:#cbd5e1;--ink:#475569}*{box-sizing:border-box}body,h1,h2,p{margin:0}h1{font-size:1.5rem;line-height:1.2;letter-spacing:-.02em}h2{font-size:1.125rem}.muted{color:var(--ink)}.small{font-size:.875rem}[hidden]{display:none!important}
+  :focus-visible,[tabindex="-1"]:focus{outline:3px solid var(--blue);outline-offset:3px}.skip{position:absolute;left:-100vw}.skip:focus{left:1rem;top:1rem;z-index:2;background:white;padding:.65rem}.review{background:#eff6ff;border-bottom:1px solid #bfdbfe;color:#1e40af}.review-inner{width:min(72rem,100% - 2rem);margin:auto;display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;padding:.65rem 0}.review .picker{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+  main{width:min(72rem,100% - 2rem);margin:2rem auto;padding:clamp(1rem,3vw,1.5rem);background:white;border:1px solid var(--border);border-radius:12px}.heading{margin-bottom:1.25rem}.heading h1{margin:.3rem 0 .45rem}.card{border:1px solid var(--border);border-radius:12px;box-shadow:0 1px 2px #0f172a0a;min-width:0}.pad{padding:1rem}.card-title{border-bottom:1px solid #e2e8f0}.table-wrap{overflow:auto}table{border-collapse:collapse;text-align:left;width:100%;min-width:38rem}th,td{padding:.75rem;vertical-align:middle}thead th{color:var(--ink);background:#f1f5f9;font-size:.875rem}tbody th,td{border-bottom:1px solid #e2e8f0}tbody th{font-weight:650}.actions{display:flex;gap:.4rem;flex-wrap:wrap}
+  button,input,select{font:inherit;color:inherit}button{min-height:2.6rem;border:1px solid #94a3b8;border-radius:7px;background:white;padding:.48rem .8rem;font-weight:650;cursor:pointer}button:hover{background:#f1f5f9}.primary{background:var(--blue);color:white;border-color:var(--blue)}.primary:hover{background:#1e40af}input,select{min-width:0;width:100%;min-height:2.6rem;padding:.48rem .65rem;border:1px solid #64748b;border-radius:6px;background:white}.picker select{width:auto;max-width:100%;min-height:2.2rem;padding:.3rem .5rem}.field{display:grid;gap:.3rem;align-content:start;min-width:0}label{font-weight:650}.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.9rem;margin-bottom:1rem}
+  .alert{border:1px solid #fca5a5;border-radius:8px;background:#fef2f2;color:#991b1b;padding:.75rem 1rem;margin-bottom:1rem}.alert p{margin-top:.25rem}.hint{padding:.75rem 1rem;color:var(--ink)}.field-error{color:#991b1b;font-size:.875rem}.field-error:empty{display:none}
+  @media(max-width:550px){main{margin:1rem auto}.fields{grid-template-columns:minmax(0,1fr)}}
+</style>
+</head>
+<body>
+<a class="skip" href="#content">Ir para o conteúdo</a>
+<aside class="review" aria-label="Informações para revisão">
+  <div class="review-inner"><p class="small"><strong>Protótipo para revisão</strong> · Dados fictícios. São exibidos apenas os trechos afetados pelos bloqueios.</p>
+  <div class="picker"><label class="small" for="case">Tela em revisão</label><select id="case">
+    <option value="vehicle">Frota · Veículos</option><option value="plan">Frota · Planos</option>
+    <option value="customer">Pessoas · Clientes</option><option value="driver">Pessoas · Condutores</option>
+    <option value="fee">Preços operacionais · Taxas e serviços</option>
+  </select></div></div>
+</aside>
+<main id="content" tabindex="-1">
+  <header class="heading"><p class="muted small" id="path"></p><h1 id="heading" tabindex="-1"></h1><p class="muted" id="intro"></p></header>
+  <div id="feedback" class="alert" role="alert" tabindex="-1" hidden></div><div id="screen"></div>
+</main>
+<script>
+"use strict";
+const $ = selector => document.querySelector(selector);
+const cases = {
+  vehicle:{path:"Cadastros / Frota e preços",heading:"Frota",intro:"Prepare os grupos, as modalidades e os dados da frota.",title:"Veículos cadastrados",
+    columns:["ID","Placa","Marca / modelo","Cor","Combustível"],values:["V-01","FIC-0A01","Aurora / Lume","Prata","Gasolina"],
+    editBlock:"Este veículo está vinculado a um aluguel em aberto e não pode ser editado.",deleteBlock:"Este veículo está vinculado a um aluguel em aberto e não pode ser excluído."},
+  plan:{path:"Cadastros / Frota e preços",heading:"Frota",intro:"Prepare os grupos, as modalidades e os dados da frota.",title:"Planos cadastrados",
+    columns:["ID","Grupo","Modalidade","Parâmetros"],values:["PL-01","Compactos","Diário","R$ 120,00 por dia · R$ 2,00 por km"],
+    deleteBlock:"Este plano já foi usado em um aluguel e não pode ser excluído."},
+  customer:{path:"Cadastros / Pessoas",heading:"Pessoas",intro:"Consulte clientes, vínculos e condutores.",title:"Clientes cadastrados",
+    columns:["ID","Nome","Telefone","Documentos","Tipo"],values:["P-01","Marina Exemplo","(00) 90000-0001","CPF •••.•••.•••-••","Pessoa física"],
+    fields:[["CNH","CNH-EXEMPLO-A"]],deleteBlock:"Este cliente está vinculado a um aluguel em aberto e não pode ser excluído.",
+    changeBlock:"A CNH não pode ser alterada enquanto o condutor correspondente estiver vinculado a um aluguel em aberto."},
+  driver:{path:"Cadastros / Pessoas",heading:"Pessoas",intro:"Consulte clientes, vínculos e condutores.",title:"Condutores cadastrados",
+    columns:["ID","Nome","Cliente","CPF","CNH","Validade"],values:["C-01","Marina Exemplo","Marina Exemplo","•••.•••.•••-••","CNH-EXEMPLO-A","24/11/2026"],
+    fields:[["CPF","•••.•••.•••-••"],["CNH","CNH-EXEMPLO-A"],["Validade da CNH","24/11/2026","local-date"],["Cliente vinculado","Marina Exemplo","select"]],
+    deleteBlock:"Este condutor está vinculado a um aluguel em aberto e não pode ser excluído.",
+    changeBlock:"CPF, CNH, validade e vínculo do condutor não podem ser alterados enquanto houver aluguel em aberto."},
+  fee:{path:"Cadastros / Frota e preços",heading:"Preços operacionais",intro:"Configure taxas, seguros e combustíveis da empresa.",title:"Taxas e serviços",
+    columns:["ID","Nome","Preço","Modalidade"],values:["T-01","Higienização","R$ 30,00","Fixa"],
+    editBlock:"Esta taxa está vinculada a um aluguel em aberto e não pode ser editada.",deleteBlock:"Esta taxa está vinculada a um aluguel em aberto e não pode ser excluída."}
+};
+let current;
+function showMessage(message) {
+  const box = $("#feedback");
+  box.innerHTML = `<strong>Operação não permitida</strong><p>${message}</p>`;
+  box.hidden = false;
+  box.focus();
+}
+function hideMessage() { $("#feedback").hidden = true; $("#feedback").replaceChildren(); }
+function list(moveFocus = false) {
+  current = cases[$("#case").value]; hideMessage();
+  $("#path").textContent = current.path; $("#heading").textContent = current.heading; $("#intro").textContent = current.intro;
+  $("#screen").innerHTML = `<section class="card" aria-labelledby="table-title"><header class="pad card-title"><h2 id="table-title">${current.title}</h2></header>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="${current.title}"><table>
+    <thead><tr>${current.columns.map(column => `<th scope="col">${column}</th>`).join("")}<th scope="col">Ações</th></tr></thead>
+    <tbody><tr>${current.values.map((value,index) => index ? `<td>${value}</td>` : `<th scope="row">${value}</th>`).join("")}
+    <td><div class="actions">${current.editBlock || current.fields ? '<button data-action="edit">Editar</button>' : ""}<button data-action="delete">Excluir</button></div></td></tr></tbody>
+  </table></div></section>`;
+  if (moveFocus) $("#heading").focus();
+}
+function form() {
+  hideMessage();
+  $("#screen").innerHTML = `<section class="card" aria-labelledby="edit-title"><header class="pad card-title"><h2 id="edit-title" tabindex="-1">Editar cadastro</h2><p class="small muted">${current.values[1]}</p></header>
+   <form id="update" class="pad"><div class="fields">${current.fields.map(([label,value,type],index) => `<div class="field"><label for="protected-${index}">${label}</label>
+   ${type === "select" ? `<select id="protected-${index}" aria-describedby="protected-error-${index}"><option>${value}</option><option>Horizonte Exemplo Ltda.</option></select>` : `<input id="protected-${index}" value="${value}" type="text"${type === "local-date" ? ' placeholder="dd/mm/aaaa"' : ""} aria-describedby="protected-error-${index}">`}
+   <span class="field-error" id="protected-error-${index}"></span></div>`).join("")}</div><div class="actions"><button type="button" data-action="back">Voltar</button><button type="submit" class="primary">Salvar alterações</button></div></form></section>`;
+  $("#edit-title").focus();
+}
+$("#case").addEventListener("change",() => list(true));
+$("#screen").addEventListener("click",event => {
+  const button = event.target.closest("[data-action]");
+  if (!button) return;
+  if (button.dataset.action === "delete") showMessage(current.deleteBlock);
+  if (button.dataset.action === "edit") current.editBlock ? showMessage(current.editBlock) : form();
+  if (button.dataset.action === "back") list(true);
+});
+$("#screen").addEventListener("input",event => {
+  if (!event.target.closest("#update")) return;
+  hideMessage(); event.target.removeAttribute("aria-invalid");
+  $(`#${event.target.id.replace("protected-","protected-error-")}`).textContent = "";
+});
+$("#screen").addEventListener("submit",event => {
+  event.preventDefault();
+  const changed = current.fields.map(([,value],index) => ({field:$(`#protected-${index}`),value,index})).filter(item => item.field.value !== item.value);
+  if (!changed.length) { list(true); return; }
+  changed.forEach(({field,index}) => {
+    field.setAttribute("aria-invalid","true");
+    $(`#protected-error-${index}`).textContent = "Alteração bloqueada por vínculo com aluguel em aberto.";
+  });
+  showMessage(current.changeBlock);
+});
+list();
+</script>
+</body>
+</html>

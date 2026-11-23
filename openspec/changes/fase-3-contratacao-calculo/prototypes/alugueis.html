@@ -1,0 +1,435 @@
+<!doctype html>
+<!--
+Source: ../proposal.md (What Changes), ../specs/alugueis/spec.md
+Style: project slate/blue tokens, native system typography, plain inline CSS; no styling library.
+Covered:
+  - Contratação com cadastros elegíveis / Selecionar contratante e condutor; Selecionar veículo, plano e adicionais; Rejeitar entrada inválida ou configuração indispensável ausente; CNH válida no dia do retorno -> linked options, initial odometer, Sao Paulo return, fixed exit, full tank and field errors.
+  - Estimativa discriminada sem ocupação / Solicitar estimativa de contratação; Planos com parcela pendente por quilômetro; Plano Livre e caução separada; Precisão e duração -> quote, plan terms, extra rows, known amount, separate guarantee.
+  - Confirmação atômica e idempotente / Confirmar criação; Veículo ocupado enquanto o formulário estava aberto; Repetir criação ou falhar sem efeito parcial -> success, unavailable vehicle, simulated uncertain result and replay.
+  - Revisão de aluguel em aberto / Editar dados e preservar preços; Trocar veículo sem efeito parcial; Tratar versão desatualizada sem sobrescrever -> prefilled edit, retained prices, incompatible plan reset, stale revision and explicit reload.
+  - Consulta e demonstrativo de aluguel aberto / Listar e consultar contrato; Exibir estados acessíveis da consulta e dos formulários; Cadastro alterado não reescreve o contrato -> list/filters/pager, detail/snapshot, status, quote and accessible errors.
+Not specified (presentational only): page shell and visual tokens reused from the app; reviewer banner and scenario selector, not product controls.
+Open questions: none.
+Simulation only: fixed sample dates (UTC-03 for these dates), fictional records, one in-memory session; not evidence of SQL concurrency, document algorithms, tenant authorization, HTTP idempotency, historical time zones or auditing.
+-->
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Aluguéis — protótipo da Fase 3</title>
+<style>
+  :root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#0f172a;background:#f8fafc;line-height:1.5;--muted:#475569;--line:#cbd5e1;--subtle:#e2e8f0;--blue:#1d4ed8;--pale:#eff6ff;--soft:#f1f5f9;--red:#991b1b;font-synthesis:none}
+  *{box-sizing:border-box}body{margin:0}h1,h2,h3,p,dl,dd{margin:0}h1{font-size:1.5rem;line-height:1.2;letter-spacing:-.02em}h2{font-size:1.125rem;line-height:1.35}h3{font-size:1rem}small,.small{font-size:.875rem}.muted{color:var(--muted)}.strong{font-weight:700}.numeric{font-variant-numeric:tabular-nums}[hidden]{display:none!important}
+  :focus-visible,[tabindex="-1"]:focus{outline:3px solid var(--blue);outline-offset:3px}.skip{position:absolute;left:-100vw}.skip:focus{left:1rem;top:1rem;z-index:3;background:white;padding:.65rem}
+  .review{background:var(--pale);border-bottom:1px solid #bfdbfe;color:#1e40af}.review-inner{width:min(72rem,100% - 2rem);margin:auto;min-height:3.3rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem 1rem;padding:.65rem 0}.review summary{cursor:pointer;font-weight:650}.review select{margin-top:.5rem;font-size:.875rem;padding:.35rem .55rem}
+  main{width:min(72rem,100% - 2rem);margin:2rem auto;background:white;border:1px solid var(--line);border-radius:12px;padding:clamp(1rem,3vw,1.5rem);box-shadow:0 1px 2px #0f172a0a}.heading{margin-bottom:1.25rem}.heading p+p{margin-top:.35rem}.heading h1{margin:.3rem 0 .45rem}.bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem}
+  button,input,select{font:inherit;color:inherit}button{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.6rem;border:1px solid #94a3b8;border-radius:7px;background:white;padding:.48rem .8rem;font-weight:650;cursor:pointer;text-align:center}button:hover:not(:disabled){background:var(--soft)}button.primary{background:var(--blue);border-color:var(--blue);color:white}button.primary:hover:not(:disabled){background:#1e40af}button:disabled{cursor:default;color:#475569;background:#e2e8f0;border-color:#cbd5e1}
+  input:not([type=checkbox]),select{width:100%;min-width:0;min-height:2.65rem;padding:.48rem .65rem;border:1px solid #64748b;border-radius:6px;background:white}input:disabled,select:disabled{background:var(--soft);color:var(--muted)}input[type=checkbox]{width:1.2rem;height:1.2rem;margin:0;accent-color:var(--blue);flex:none}label{font-weight:650}fieldset{min-width:0;margin:0;border:0;padding:0}legend{padding:0;font-weight:700}
+  .card{min-width:0;border:1px solid var(--line);border-radius:12px;background:white;box-shadow:0 1px 2px #0f172a0a}.pad{padding:1rem}.stack{display:grid;gap:1rem}.fields,.facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.9rem 1rem}.field{min-width:0;display:grid;align-content:start;gap:.3rem}.hint{font-size:.875rem;color:var(--muted)}.card h2+.fields,.card h2+.facts,.card h2+.choices,.card h3+.choices{margin-top:.75rem}
+  .filters{display:grid;grid-template-columns:1.3fr 1fr 1fr auto;gap:.75rem;align-items:end;background:#f8fafc;border-block:1px solid var(--subtle)}.table-wrap{overflow:auto}.table-wrap:focus:not(:focus-visible){outline:none}table{border-collapse:collapse;width:100%;min-width:55rem;text-align:left}th,td{border-bottom:1px solid var(--subtle);padding:.75rem .7rem;vertical-align:middle}th{background:var(--soft);color:var(--muted);font-size:.875rem;text-wrap:nowrap}td strong,td small{display:block}tbody tr:hover{background:#f8fafc}.actions{white-space:nowrap}.actions button{min-height:2.25rem;padding:.3rem .6rem;font-size:.875rem}.table-value{white-space:nowrap}.empty{text-align:center;padding:2rem 1rem}.pager{color:var(--muted);font-size:.875rem}.pager button+button{margin-left:.35rem}
+  .grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(17rem,1fr);gap:1rem;align-items:start}.choices{display:grid;gap:.5rem}.choice{display:flex;align-items:flex-start;gap:.65rem;min-width:0;padding:.65rem;border:1px solid var(--subtle);border-radius:7px}.choice input{margin-top:.14rem}.choice span{display:block}.choice:has(:checked){border-color:#93c5fd;background:#f8fbff}.choice small{display:block;color:var(--muted);font-weight:400}.facts dt{font-size:.875rem;font-weight:650;color:var(--muted)}.facts dd{overflow-wrap:anywhere}.form-actions{display:flex;gap:.5rem;flex-wrap:wrap}.tag{display:inline-flex;align-items:center;border:1px solid #bfdbfe;border-radius:999px;background:var(--pale);color:#1e40af;padding:.12rem .55rem;font-weight:650;font-size:.8125rem;white-space:nowrap}
+  .quote h2{margin-bottom:.2rem}.quote-body{border-top:1px solid var(--subtle);display:grid;gap:.8rem;padding:1rem}.line{display:flex;justify-content:space-between;align-items:baseline;gap:.75rem}.line dd,.line strong{flex:none}.line+.line{margin-top:.7rem}.quote .total{background:var(--pale);border-radius:8px;padding:.7rem .75rem;align-items:center}.total dd{font-size:1.25rem;font-weight:750;letter-spacing:-.02em}.guarantee{border-top:1px solid var(--subtle);background:#f8fafc;border-radius:0 0 12px 12px}.guarantee p{margin-top:.25rem}
+  .alert,.notice{border:1px solid #fca5a5;border-radius:8px;background:#fef2f2;color:var(--red);padding:.75rem 1rem;margin-bottom:1rem}.notice{border-color:#bfdbfe;background:var(--pale);color:#1e40af}.alert ul{margin:.3rem 0;padding-left:1.25rem}.field-error{color:var(--red);font-size:.875rem;font-weight:500}.field-error:empty{display:none}[aria-invalid=true]{border-color:var(--red)!important}.alert button{margin-top:.5rem}.compact{margin-top:.8rem}#filter-error{margin-inline:1rem}.quote:has(.quote-actions) .guarantee{border-radius:0}.quote-actions{border-top:1px solid var(--subtle)}.quote-actions button{width:100%}
+  @media(max-width:830px){.grid{grid-template-columns:minmax(0,1fr)}.filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(max-width:480px){main{margin:1rem auto}.fields,.facts,.filters{grid-template-columns:minmax(0,1fr)}.review-inner{align-items:flex-start}.pager{align-items:flex-start}.total dd{font-size:1.125rem}.pad,.quote-body{padding:.8rem}}
+</style>
+</head>
+<body>
+<a class="skip" href="#content">Ir para o conteúdo</a>
+<aside class="review" aria-label="Informações para revisão">
+  <div class="review-inner">
+    <p class="small"><strong>Protótipo para revisão</strong> · Dados fictícios. Recarregar a página restaura os exemplos.</p>
+    <details><summary class="small">Cenários de revisão</summary>
+      <label class="small" for="scenario">Simular no protótipo</label>
+      <select id="scenario">
+        <option value="normal">Fluxo normal</option><option value="list-error">Falha na próxima consulta</option>
+        <option value="empty">Lista sem aluguéis</option><option value="busy">Veículo ocupado na gravação</option>
+        <option value="uncertain">Resposta de criação não recebida</option><option value="stale">Versão de edição desatualizada</option>
+        <option value="insurance">Seguro de terceiros sem preço</option>
+      </select>
+    </details>
+  </div>
+</aside>
+<main id="content" tabindex="-1">
+  <header class="heading"><p class="small muted" id="path">Operação / Aluguéis</p><h1 id="heading" tabindex="-1">Aluguéis</h1><p class="muted" id="intro">Consulte os aluguéis em aberto e acompanhe suas estimativas.</p></header>
+  <p id="notice" class="notice" role="status" aria-atomic="true" hidden></p>
+  <div id="screen"></div>
+</main>
+<script>
+"use strict";
+const $ = (selector, root = document) => root.querySelector(selector);
+const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, character => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[character]);
+const now = "2026-11-23T09:00";
+const customers = [
+  {id:"P-01", name:"Marina Exemplo", kind:"Pessoa física", document:"CPF •••.•••.•••-••"},
+  {id:"P-02", name:"Horizonte Exemplo Ltda.", kind:"Pessoa jurídica", document:"CNPJ ••.•••.•••/••••-••"},
+  {id:"P-03", name:"Lívia Exemplo", kind:"Pessoa física", document:"CPF •••.•••.•••-••"}
+];
+const drivers = [
+  {id:"C-01", customer:"P-01", name:"Marina Exemplo", expires:"2026-11-24"},
+  {id:"C-02", customer:"P-02", name:"Rafael Exemplo", expires:"2027-11-23"},
+  {id:"C-03", customer:"P-02", name:"Alice Exemplo", expires:"2026-11-22"}
+];
+const vehicles = [
+  {id:"V-01", name:"Aurora Lume", plate:"FIC-0A01", group:"Compactos", fuel:"Gasolina", capacity:"50 L"},
+  {id:"V-02", name:"Aurora Brisa", plate:"FIC-0A02", group:"Compactos", fuel:"Álcool", capacity:"48 L"},
+  {id:"V-03", name:"Serra Trilha", plate:"FIC-0A03", group:"Utilitários", fuel:"Diesel", capacity:"60 L"},
+  {id:"V-04", name:"Aurora Vale", plate:"FIC-0A04", group:"Compactos", fuel:"Gasolina", capacity:"46 L"}
+];
+const plans = [
+  {id:"PL-01", group:"Compactos", name:"Diário", daily:120000000n, km:2000000n},
+  {id:"PL-02", group:"Compactos", name:"Controlado", daily:145000000n, km:2500000n, quota:100},
+  {id:"PL-03", group:"Compactos", name:"Livre", daily:180000000n},
+  {id:"PL-04", group:"Utilitários", name:"Livre", daily:240000000n}
+];
+const extras = [
+  {id:"T-01", name:"Higienização", type:"Taxa fixa", price:30000000n, daily:false},
+  {id:"T-02", name:"Cadeirinha infantil", type:"Taxa diária", price:12505000n, daily:true},
+  {id:"S-01", name:"Seguro do cliente", type:"Seguro diário", price:0n, daily:true},
+  {id:"S-02", name:"Seguro de terceiros", type:"Seguro diário", price:15000000n, daily:true}
+];
+const seed = {
+  id:"AL-001", revision:1, customer:{...customers[1]}, driver:{...drivers[1]}, vehicle:{...vehicles[0]},
+  plan:{...plans[0], daily:100000000n}, items:[{...extras[3],price:9000000n}],
+  start:"2026-11-22T09:00", end:"2026-11-24T09:00", odometer:"21430"
+};
+const records = new Map([[seed.id, seed]]);
+const revisions = [];
+const externallyBusy = new Set();
+let nextId = 2, currentPage = 1, screenVersion = 0, view = "list", activeId = null;
+let filters = {vehicle:"", from:"", through:""};
+let original = null, estimate = null, pending = null;
+const pageSize = 20;
+const number = value => new Intl.NumberFormat("pt-BR").format(BigInt(value));
+const cents = units => (units + 5000n) / 10000n;
+const money = value => `R$ ${number(value / 100n)},${String(value % 100n).padStart(2,"0")}`;
+const price = units => {
+  const fraction = String(units % 1000000n).padStart(6,"0").replace(/0+$/,"").padEnd(2,"0");
+  return `R$ ${number(units / 1000000n)},${fraction}`;
+};
+const date = value => value.slice(0,10).split("-").reverse().join("/");
+const time = value => `${date(value)} às ${value.slice(11,16)}`;
+const utc = value => Date.parse(`${value}:00-03:00`);
+function localInput(value, withTime = false) {
+  const match = String(value).trim().match(withTime ? /^(\d{2})\/(\d{2})\/(\d{4})\s+([01]\d|2[0-3]):([0-5]\d)$/ : /^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return "";
+  const [,day,month,year,hour,minute] = match;
+  const iso = `${year}-${month}-${day}`;
+  const checked = new Date(`${iso}T00:00Z`);
+  if (!Number.isFinite(checked.valueOf()) || checked.toISOString().slice(0,10) !== iso) return "";
+  return withTime ? `${iso}T${hour}:${minute}` : iso;
+}
+const fullCar = car => `${car.plate} — ${car.name}`;
+const byId = (records, id) => records.find(record => record.id === id);
+const available = (id, except) => !externallyBusy.has(id) && !Array.from(records.values()).some(record => record.id !== except && record.vehicle.id === id);
+const option = (id, text, selected) => `<option value="${escapeHtml(id)}"${id === selected ? " selected" : ""}>${escapeHtml(text)}</option>`;
+const options = (set, label, current, prompt) => [option("",prompt,current), ...set.map(item => option(item.id,label(item),current))].join("");
+const input = (id, label, markup, hint = "") => `<div class="field"><label for="${id}">${label}</label>${markup}${hint ? `<small class="hint" id="${id}-hint">${hint}</small>` : ""}<span class="field-error" id="${id}-error"></span></div>`;
+const row = (label, text, extra = "") => `<div class="line"><dt>${label}${extra ? `<div class="small muted">${extra}</div>` : ""}</dt><dd class="strong numeric">${text}</dd></div>`;
+const fact = (label, value) => `<div><dt>${label}</dt><dd>${value}</dd></div>`;
+function scenario() { return $("#scenario").value; }
+function resetScenario() { $("#scenario").value = "normal"; }
+function notify(message = "") { const node = $("#notice"); node.textContent = message; node.hidden = !message; }
+function heading(name, description, section = "") {
+  $("#heading").textContent = name;
+  $("#intro").textContent = description;
+  $("#path").textContent = `Operação / Aluguéis${section ? " / " + section : ""}`;
+}
+function navigate(nextView, id = null, fromUser = true) {
+  screenVersion++;
+  view = nextView; activeId = id; notify();
+  if (view === "list") showList();
+  if (view === "detail") showDetail(records.get(id));
+  if (view === "create" || view === "edit") editor(id ? records.get(id) : null);
+  if (fromUser) $("#heading").focus();
+}
+function showList(focusTarget) {
+  heading("Aluguéis","Consulte os aluguéis em aberto e acompanhe suas estimativas.");
+  $("#screen").innerHTML = `<section class="card" aria-labelledby="list-title">
+    <header class="bar pad"><h2 id="list-title">Aluguéis em aberto</h2><button class="primary" data-action="new">Nova contratação</button></header>
+    <form class="filters pad" id="filters">
+      <div class="field"><label for="filter-car">Veículo</label><select id="filter-car">${options(vehicles,fullCar,filters.vehicle,"Todos os veículos")}</select></div>
+      <div class="field"><label for="filter-from">Saída a partir de</label><input type="text" id="filter-from" value="${filters.from ? date(filters.from) : ""}" placeholder="dd/mm/aaaa" aria-describedby="filter-format"></div>
+      <div class="field"><label for="filter-through">Saída até</label><input type="text" id="filter-through" value="${filters.through ? date(filters.through) : ""}" placeholder="dd/mm/aaaa" aria-describedby="filter-format"></div>
+      <button type="submit" id="apply-filter">Filtrar</button></form>
+    <p id="filter-format" class="small muted pad">Período de saída no horário de São Paulo. Formato: dia/mês/ano.</p>
+    <p id="filter-error" class="alert pad" role="alert" tabindex="-1" hidden></p>
+    <div id="results" aria-busy="true"><p class="empty muted" role="status">Carregando aluguéis…</p></div>
+  </section>`;
+  if (focusTarget) $(focusTarget)?.focus();
+  const version = screenVersion;
+  window.setTimeout(() => {
+    if (version !== screenVersion || view !== "list") return;
+    const results = $("#results"); results.setAttribute("aria-busy","false");
+    if (scenario() === "list-error") {
+      results.innerHTML = `<div class="empty"><p role="alert">Não foi possível consultar os aluguéis.</p><button class="compact" data-action="retry-list">Tentar novamente</button></div>`;
+      return;
+    }
+    const matches = scenario() === "empty" ? [] : [...records.values()].filter(record => (!filters.vehicle || record.vehicle.id === filters.vehicle)
+      && (!filters.from || record.start.slice(0,10) >= filters.from) && (!filters.through || record.start.slice(0,10) <= filters.through))
+      .sort((left,right) => right.start.localeCompare(left.start) || left.id.localeCompare(right.id));
+    currentPage = Math.min(currentPage,Math.max(1,Math.ceil(matches.length / pageSize)));
+    if (!matches.length) { results.innerHTML = `<p class="empty muted" role="status" tabindex="-1" id="results-state">Nenhum aluguel em aberto encontrado.</p>`; if (focusTarget === "#results-state") $("#results-state").focus(); return; }
+    const rows = matches.slice((currentPage - 1) * pageSize, currentPage * pageSize).map(record => `<tr>
+      <th scope="row" style="background:white;color:#0f172a">${record.id}</th><td>${record.driver.name}</td>
+      <td><strong>${record.vehicle.plate}</strong><small class="muted">${record.vehicle.name}</small></td><td>${record.plan.name}</td>
+      <td class="numeric">${date(record.start)}<small class="muted">${record.start.slice(11)}</small></td>
+      <td class="numeric">${date(record.end)}<small class="muted">${record.end.slice(11)}</small></td>
+      <td><span class="tag">Em aberto</span></td>
+      <td class="table-value numeric"><strong>${money(calculate(record).known)}</strong><small class="muted">Parcelas conhecidas</small></td>
+      <td class="actions"><button data-action="detail" data-id="${record.id}" aria-label="Consultar aluguel ${record.id}">Consultar</button></td></tr>`).join("");
+    results.innerHTML = `<div class="table-wrap" role="region" aria-label="Tabela de aluguéis em aberto" tabindex="0">
+      <table><thead><tr>${["ID","Condutor","Veículo","Plano","Saída","Retorno previsto","Situação","Estimativa","Ações"].map(label => `<th scope="col">${label}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></div>
+      <footer class="bar pager pad"><p id="results-state" tabindex="-1" role="status">Página ${currentPage} · ${matches.length} ${matches.length === 1 ? "aluguel" : "aluguéis"}</p><div>
+      <button data-action="previous"${currentPage <= 1 ? " disabled" : ""}>Anterior</button><button data-action="next"${currentPage * pageSize >= matches.length ? " disabled" : ""}>Próxima</button></div></footer>`;
+    if (focusTarget === "#results-state") $("#results-state").focus();
+  },180);
+}
+function calculate(record) {
+  const duration = Math.max(1, Math.ceil((utc(record.end) - utc(record.start)) / 86400000));
+  const factor = BigInt(duration);
+  const base = cents(record.plan.daily * factor);
+  const items = record.items.map(item => ({...item, amount:cents(item.price * (item.daily ? factor : 1n))}));
+  return {duration, base, items, known:items.reduce((sum,item) => sum + item.amount,base)};
+}
+function quote(record, title, creation = false) {
+  const calc = record ? calculate(record) : null;
+  const quota = record?.plan.quota;
+  const index = record?.plan.km;
+  const period = calc?.duration === 1 ? "1 diária" : `${calc?.duration} diárias`;
+  const terms = quota != null ? `${number(quota)} km/dia · ${number(BigInt(quota) * BigInt(calc.duration))} km de franquia no período · ${price(index)} por km excedente`
+    : index != null ? `${price(index)} por km rodado` : "";
+  return `<section class="card quote" aria-labelledby="quote-title">
+    <header class="pad"><h2 id="quote-title" tabindex="-1">${title}</h2><p class="small muted">${calc ? `${period} de 24 h · Horário de São Paulo` : "Parcelas conhecidas da contratação."}</p></header>
+    <div class="quote-body">${calc ? `<dl>
+      ${row(`Plano ${record.plan.name}`,money(calc.base),`${period} × ${price(record.plan.daily)}`)}
+      ${index != null ? row("Cobrança por quilômetro","Pendente",terms) : ""}
+      ${calc.items.map(item => row(item.name,money(item.amount),`${item.type} · ${item.daily ? `${period} × ` : ""}${price(item.price)}`)).join("")}
+      </dl><dl class="total line"><dt class="strong">Parcelas conhecidas</dt><dd class="numeric">${money(calc.known)}</dd></dl>
+      <p class="small muted">${creation ? "A confirmação recalcula a estimativa com a saída e os preços do momento. A prévia não ocupa o veículo." : "A estimativa usa os preços desta contratação."} Não é o valor final da devolução.</p>`
+      : `<p class="muted">Preencha os dados e calcule a estimativa para conferir os valores.</p>`}</div>
+    <div class="guarantee pad"><dl>${row("Caução",money(100000n))}</dl><p class="small muted">Garantia separada, não incluída no custo do aluguel.</p></div>
+    ${creation ? `<footer class="quote-actions pad"><button type="submit" form="rental" class="primary" value="create" id="confirm"${record ? "" : " disabled"}>Confirmar contratação</button></footer>` : ""}
+  </section>`;
+}
+function showDetail(record) {
+  heading(`Aluguel ${record.id}`,"Consulte os dados preservados e o demonstrativo estimado.","Detalhe");
+  $("#screen").innerHTML = `<div class="bar compact" style="margin-bottom:1rem"><span class="tag">Em aberto</span><div class="form-actions"><button data-action="list">Voltar aos aluguéis</button><button class="primary" data-action="edit">Editar aluguel</button></div></div>
+   <div class="grid"><div class="stack">
+    <section class="card pad"><h2>Contratante e condutor</h2><dl class="facts">
+      ${fact("Contratante",`${record.customer.name}<br><small class="muted">${record.customer.kind} · ${record.customer.document}</small>`)}
+      ${fact("Condutor",`${record.driver.name}<br><small class="muted">CNH válida até ${date(record.driver.expires)}</small>`)}
+    </dl></section>
+    <section class="card pad"><h2>Veículo e período</h2><dl class="facts">
+      ${fact("Veículo",fullCar(record.vehicle))}${fact("Grupo e plano",`${record.vehicle.group} · ${record.plan.name}`)}
+      ${fact("Saída",time(record.start))}${fact("Retorno previsto",time(record.end))}
+      ${fact("Hodômetro inicial",`${number(record.odometer)} km`)}${fact("Combustível na saída",`Tanque cheio · ${record.vehicle.fuel} · ${record.vehicle.capacity}`)}
+    </dl><p class="small muted compact">Datas e horários de São Paulo.</p></section>
+   </div>${quote(record,"Demonstrativo estimado")}</div>`;
+}
+function editor(record) {
+  original = record; estimate = null; pending = null;
+  heading(record ? `Editar aluguel ${record.id}` : "Nova contratação",record ? "Revise o aluguel em aberto. A saída e os preços dos itens mantidos são preservados." : "Selecione os dados da locação e confira a estimativa antes de confirmar.",record ? "Edição" : "Contratação");
+  $("#screen").innerHTML = `<div id="summary" class="alert" role="alert" tabindex="-1" hidden></div>
+   <div class="grid"><form id="rental" class="stack" novalidate>
+    <section class="card pad"><h2>Contratante e condutor</h2><div class="fields">
+     ${input("customer","Cliente contratante",`<select id="customer" required aria-describedby="customer-error">${options(customers,item => `${item.name} · ${item.kind}`,record?.customer.id,"Selecione o cliente")}</select>`)}
+     ${input("driver","Condutor",`<select id="driver" required aria-describedby="driver-hint driver-error"></select>`,"Selecione o cliente para ver os condutores vinculados.")}
+    </div></section>
+    <section class="card pad"><h2>Veículo e plano</h2><div class="fields">
+     ${input("vehicle","Veículo",`<select id="vehicle" required aria-describedby="vehicle-error"></select>`)}
+     ${input("plan","Plano",`<select id="plan" required aria-describedby="plan-hint plan-error"></select>`,"Selecione o veículo para ver os planos do grupo.")}
+    </div><p class="small muted compact">O veículo sai com o tanque cheio.</p></section>
+    <section class="card pad"><h2>Saída e retorno</h2><div class="fields">
+     <div class="field"><span class="strong">Saída</span><p>${record ? time(record.start) : "Atribuída na confirmação"}</p><small class="hint">Horário de São Paulo · não editável</small></div>
+     ${input("end","Retorno previsto",`<input type="text" id="end" required value="${record ? `${date(record.end)} ${record.end.slice(11,16)}` : ""}" placeholder="dd/mm/aaaa hh:mm" aria-describedby="end-hint end-error">`,"Dia/mês/ano e hora no formato de 24 h, no horário de São Paulo.")}
+     ${input("odometer","Hodômetro inicial (km)",`<input type="text" inputmode="numeric" id="odometer" required value="${record?.odometer ?? ""}" aria-describedby="odometer-error">`)}
+    </div></section>
+    <section class="card pad"><h2>Taxas e seguros</h2><div id="extras" class="stack compact"></div></section>
+    <div class="form-actions">
+     <button type="button" data-action="${record ? "detail" : "list"}"${record ? ` data-id="${record.id}"` : ""}>${record ? "Voltar ao contrato" : "Voltar aos aluguéis"}</button>
+      ${record ? '<button type="submit" class="primary" value="save">Salvar alterações</button>' : '<button type="submit" class="primary" value="estimate">Calcular estimativa</button>'}
+    </div>
+   </form><div id="quote">${quote(record,record ? "Demonstrativo atual" : "Estimativa da contratação",!record)}</div></div>`;
+  updateDrivers(record?.driver.id); updateVehicles(record?.vehicle.id); updatePlans(record?.plan.id);
+  renderExtras(record?.items.map(item => item.id) ?? []);
+}
+function updateDrivers(current = "") {
+  const customer = $("#customer").value;
+  const eligible = drivers.filter(driver => driver.customer === customer);
+  $("#driver").innerHTML = options(eligible,item => item.name,current,eligible.length ? "Selecione o condutor" : "Nenhum condutor disponível");
+  $("#driver").disabled = !eligible.length;
+  $("#driver-hint").textContent = !customer ? "Selecione o cliente para ver os condutores vinculados." : eligible.length ? "A CNH precisa estar válida no dia do retorno previsto." : "Este cliente não tem um condutor vinculado.";
+}
+function updateVehicles(current = "") {
+  const choices = vehicles.filter(car => available(car.id,original?.id));
+  $("#vehicle").innerHTML = options(choices,fullCar,current,choices.length ? "Selecione o veículo disponível" : "Nenhum veículo disponível");
+}
+function updatePlans(current = "") {
+  const car = byId(vehicles,$("#vehicle").value);
+  const choices = plans.filter(plan => plan.group === car?.group);
+  $("#plan").innerHTML = options(choices,item => item.name,current,choices.length ? "Selecione o plano" : "Nenhum plano disponível");
+  $("#plan").disabled = !choices.length;
+  $("#plan-hint").textContent = car ? `Grupo: ${car.group}${choices.length ? "." : " · nenhum plano ativo."}` : "Selecione o veículo para ver os planos do grupo.";
+}
+function renderExtras(selected) {
+  const block = (label, items) => `<fieldset><legend>${label}</legend><div class="choices">${items.map(item => {
+    const applied = byId(original?.items ?? [],item.id) ?? item;
+    const configured = itemPrice(item,applied) != null;
+    return `<label class="choice"><input type="checkbox" name="extra" value="${item.id}" id="${item.id}" aria-describedby="${item.id}-error"${selected.includes(item.id) ? " checked" : ""}>
+       <span>${item.name}<small data-price="${item.id}">${configured ? `${price(applied.price)} · ${item.daily ? "por diária" : "cobrança única"}` : "Preço não configurado"}</small><span class="field-error" id="${item.id}-error"></span></span></label>`;
+  }).join("")}</div></fieldset>`;
+  $("#extras").innerHTML = block("Taxas e serviços opcionais",extras.filter(item => item.id.startsWith("T"))) + block("Seguros opcionais",extras.filter(item => item.id.startsWith("S")));
+}
+function itemPrice(item, applied) { return scenario() === "insurance" && item.id === "S-02" && applied === item ? null : applied.price; }
+function clearErrors() {
+  const summary = $("#summary"); summary.hidden = true; summary.replaceChildren();
+  $("#rental").querySelectorAll("[aria-invalid]").forEach(field => field.removeAttribute("aria-invalid"));
+  $("#rental").querySelectorAll(".field-error").forEach(field => { field.textContent = ""; });
+}
+function error(entries, title = "Revise os dados informados.", action = null) {
+  clearErrors();
+  const summary = $("#summary"); summary.hidden = false;
+  summary.innerHTML = `<strong>${title}</strong><ul>${entries.map(([,message]) => `<li>${escapeHtml(message)}</li>`).join("")}</ul>${action ?? ""}`;
+  entries.forEach(([id,message]) => {
+    if (!id) return;
+    document.getElementById(id)?.setAttribute("aria-invalid","true");
+    const field = document.getElementById(`${id}-error`); if (field) field.textContent = message;
+  });
+  summary.focus();
+}
+function payload({ignoreAvailability = false} = {}) {
+  const customer = byId(customers,$("#customer").value);
+  const driver = byId(drivers,$("#driver").value);
+  const vehicle = byId(vehicles,$("#vehicle").value);
+  const plan = byId(plans,$("#plan").value);
+  const start = original?.start ?? now, end = localInput($("#end").value,true), odometer = $("#odometer").value;
+  const entries = [];
+  if (!customer) entries.push(["customer","Selecione o cliente contratante."]);
+  if (!driver || driver.customer !== customer?.id) entries.push(["driver","Selecione um condutor vinculado ao cliente."]);
+  if (driver && end && driver.expires < end.slice(0,10)) entries.push(["driver","A CNH vence antes da data do retorno previsto."]);
+  if (!vehicle) entries.push(["vehicle","Selecione um veículo disponível."]);
+  else if (!ignoreAvailability && !available(vehicle.id,original?.id)) entries.push(["vehicle","O veículo não está mais disponível. Selecione outro."]);
+  if (!plan || plan.group !== vehicle?.group) entries.push(["plan","Selecione um plano do grupo do veículo."]);
+  if (!end) entries.push(["end","Informe uma data e hora válidas no formato dia/mês/ano e hora de 24 h."]);
+  else if (utc(end) <= utc(start)) entries.push(["end","Informe um retorno previsto posterior à saída."]);
+  if (!/^[0-9]+$/.test(odometer)) entries.push(["odometer","Informe o hodômetro inicial em quilômetros inteiros e não negativos."]);
+  const items = [...$("#rental").querySelectorAll("[name=extra]:checked")].map(control => {
+    const item = byId(extras,control.value);
+    const applied = byId(original?.items ?? [],item.id) ?? item;
+    if (itemPrice(item,applied) == null) entries.push([item.id,`Configure o preço de ${item.name.toLowerCase()} em Preços operacionais ou retire a seleção.`]);
+    return {...applied};
+  });
+  if (entries.length) { error(entries); return null; }
+  return {
+    customer:{...(customer.id === original?.customer.id ? original.customer : customer)},
+    driver:{...(driver.id === original?.driver.id ? original.driver : driver)},
+    vehicle:{...(vehicle.id === original?.vehicle.id ? original.vehicle : vehicle)},
+    plan:{...(plan.id === original?.plan.id ? original.plan : plan)}, start,end,odometer,items
+  };
+}
+function invalidateQuote() {
+  clearErrors();
+  if (!estimate) return;
+  estimate = null; $("#quote").innerHTML = quote(null,"Estimativa da contratação",true);
+}
+function complete(record, message) {
+  navigate("detail",record.id); notify(message);
+}
+function save(intent) {
+  if (pending) return;
+  clearErrors();
+  const data = payload({ignoreAvailability:scenario() === "busy"});
+  if (!data) return;
+  if (intent === "estimate") {
+    estimate = data;
+    $("#quote").innerHTML = quote(data,"Estimativa da contratação",true);
+    notify("Estimativa calculada. Nenhum veículo foi ocupado.");
+    $("#quote-title").focus();
+    return;
+  }
+  if (intent === "create" && !estimate) return;
+  if (scenario() === "busy" && data.vehicle.id !== original?.vehicle.id) {
+    externallyBusy.add(data.vehicle.id); resetScenario(); invalidateQuote(); notify();
+    const selectedPlan = $("#plan").value;
+    updateVehicles(); updatePlans(selectedPlan);
+    error([["vehicle","O veículo não está mais disponível. Selecione outro veículo para continuar."]],"Não foi possível gravar o aluguel.");
+    return;
+  }
+  if (original && scenario() === "stale") {
+    resetScenario();
+    revisions.push(original); records.set(original.id,{...original,revision:original.revision + 1});
+  }
+  if (original && original.revision !== records.get(original.id).revision) {
+    error([[null,"O contrato foi atualizado. Recarregue a versão atual antes de revisar os dados novamente."]],"A edição não foi gravada.",'<button type="button" data-action="reload">Recarregar contrato</button>');
+    return;
+  }
+  const record = {...data,id:original?.id ?? `AL-${String(nextId++).padStart(3,"0")}`,revision:(original?.revision ?? 0) + 1};
+  if (original) revisions.push(original);
+  records.set(record.id,record);
+  if (intent === "create" && scenario() === "uncertain") {
+    resetScenario(); pending = record; notify();
+    $("#rental").querySelectorAll("input,select,button").forEach(control => { control.disabled = true; });
+    $("#confirm").disabled = true;
+    error([[null,"Não recebemos a resposta da confirmação. Repita o mesmo envio sem criar outro aluguel."]],"Resultado da contratação não confirmado.",'<button type="button" data-action="retry-create">Repetir confirmação</button>');
+    return;
+  }
+  complete(record,intent === "create" ? "Contratação confirmada. O veículo está ocupado por este aluguel." : "Alterações salvas. A revisão atual do contrato está disponível.");
+}
+$("#screen").addEventListener("submit",event => {
+  event.preventDefault();
+  if (event.target.id === "filters") {
+    const fromInput = $("#filter-from"), throughInput = $("#filter-through");
+    const from = localInput(fromInput.value), through = localInput(throughInput.value);
+    const invalid = [fromInput,throughInput].filter((field,index) => field.value.trim() && !(index ? through : from));
+    for (const field of [fromInput,throughInput]) {
+      field.removeAttribute("aria-invalid"); field.setAttribute("aria-describedby","filter-format");
+    }
+    if (invalid.length) {
+      const message = $("#filter-error");
+      message.textContent = "Informe datas válidas para o período no formato dia/mês/ano.";
+      message.hidden = false;
+      for (const field of invalid) {
+        field.setAttribute("aria-invalid","true"); field.setAttribute("aria-describedby","filter-format filter-error");
+      }
+      message.focus(); return;
+    }
+    filters = {vehicle:$("#filter-car").value,from,through};
+    currentPage = 1; screenVersion++; showList("#apply-filter");
+  }
+  if (event.target.id === "rental") save(event.submitter?.value || (original ? "save" : "estimate"));
+});
+$("#screen").addEventListener("input",event => {
+  if (!event.target.closest("#rental")) return;
+  invalidateQuote(); notify();
+  if (event.target.id === "customer") updateDrivers();
+  if (event.target.id === "vehicle") updatePlans($("#plan").value);
+});
+$("#screen").addEventListener("click",event => {
+  const control = event.target.closest("[data-action]"); if (!control) return;
+  switch (control.dataset.action) {
+    case "new": navigate("create"); break;
+    case "list": navigate("list"); break;
+    case "detail": navigate("detail",control.dataset.id); break;
+    case "edit": case "reload": navigate("edit",activeId); break;
+    case "retry-create": complete(pending,"Contratação confirmada. O veículo está ocupado por este aluguel."); break;
+    case "retry-list": resetScenario(); screenVersion++; showList("#results-state"); break;
+    case "previous": currentPage--; screenVersion++; showList("#results-state"); break;
+    case "next": currentPage++; screenVersion++; showList("#results-state"); break;
+  }
+});
+$("#scenario").addEventListener("change",() => {
+  if (view === "list") { screenVersion++; showList(); }
+  if ((view === "create" || view === "edit") && !pending) {
+    const control = $('[data-price="S-02"]');
+    const item = byId(extras,"S-02");
+    const applied = byId(original?.items ?? [],item.id) ?? item;
+    control.textContent = itemPrice(item,applied) == null ? "Preço não configurado" : `${price(applied.price)} · por diária`;
+    if (scenario() === "insurance") invalidateQuote();
+  }
+});
+navigate("list",null,false);
+</script>
+</body>
+</html>
