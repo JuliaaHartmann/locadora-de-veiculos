@@ -8,5 +8,6 @@ public interface IRelogio
 public interface IContextoEmpresa
 {
     Guid? EmpresaId { get; }
-    void Definir(Guid empresaId);
+    Guid? UsuarioId { get; }
+    void Definir(Guid empresaId, Guid? usuarioId = null);
 }
