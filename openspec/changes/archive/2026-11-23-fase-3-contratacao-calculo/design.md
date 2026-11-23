@@ -2,7 +2,7 @@
 
 ## Context
 
-Ver [proposta](proposal.md) e [delta de Aluguéis](specs/alugueis/spec.md). A `main` contém a F2 integrada e arquivada. `CadastrosService` na SPA já mantém convenções de paginação, decimais, erros e ETag. `ProtocoloEscrita` na Infrastructure já abre a transação SQL, bloqueia a linha da empresa com `UPDLOCK`/`HOLDLOCK` e grava auditoria no mesmo commit. A F2 fornece os cadastros e regras de vínculo, mas a ocupação, o contrato e as guardas que dependem dele não são demonstrados pelos seus testes. Referências: [TDD](../../../docs/tdd.md) §§4–7 e [contratos F2](../../../app/backend/docs/contratos-f2.md).
+Ver [proposta](proposal.md) e [delta de Aluguéis](specs/alugueis/spec.md). A `main` contém a F2 integrada e arquivada. `CadastrosService` na SPA já mantém convenções de paginação, decimais, erros e ETag. `ProtocoloEscrita` na Infrastructure já abre a transação SQL, bloqueia a linha da empresa com `UPDLOCK`/`HOLDLOCK` e grava auditoria no mesmo commit. A F2 fornece os cadastros e regras de vínculo, mas a ocupação, o contrato e as guardas que dependem dele não são demonstrados pelos seus testes. Referências: [TDD](../../../../docs/tdd.md) §§4–7 e [contratos F2](../../../../app/backend/docs/contratos-f2.md).
 
 ## Goals / Non-Goals
 
