@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { HttpErrorResponse } from '@angular/common/http';
 import { CadastrosService } from './cadastros.service';
 import { FrotaComponent } from './frota.component';
 
@@ -112,6 +113,19 @@ describe('Frota F2', () => {
     await fixture.componentInstance.excluirGrupo(grupo);
     expect(excluir).toHaveBeenCalledWith('/grupos/g1', 'v1');
     expect(fixture.componentInstance.aviso()).toContain('excluído');
+  });
+
+  it('informa o vínculo impeditivo antes de abrir a edição do veículo', async () => {
+    const fixture = TestBed.createComponent(FrotaComponent);
+    await fixture.whenStable();
+    const mensagem = 'Este veículo está vinculado a um aluguel em aberto e não pode ser editado.';
+    obter.mockRejectedValueOnce(new HttpErrorResponse({ status: 409, error: { detail: mensagem } }));
+    await fixture.componentInstance.editarVeiculo('v1');
+    fixture.detectChanges();
+    expect(obter).toHaveBeenCalledWith('/veiculos/v1?paraEdicao=true');
+    expect(fixture.componentInstance.editando()).toBe(false);
+    expect(document.activeElement).toBe(fixture.nativeElement.querySelector('[role=alert]'));
+    expect(document.activeElement?.textContent).toContain(mensagem);
   });
 
   it('ignora resposta de aba anterior que chega depois da consulta atual', async () => {

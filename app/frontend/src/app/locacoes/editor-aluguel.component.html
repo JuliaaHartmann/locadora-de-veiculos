@@ -1,0 +1,166 @@
+@if (carregando()) {
+  <p role="status">Carregando dados da contratação…</p>
+} @else if (erroCarregar()) {
+  <p role="alert">{{ erroCarregar() }}</p>
+  <button type="button" (click)="carregar()">Tentar novamente</button>
+  <button type="button" (click)="voltar.emit()">{{ atual() ? 'Voltar ao contrato' : 'Voltar aos aluguéis' }}</button>
+} @else {
+  @if (aviso()) { <p class="rounded-lg border border-blue-200 bg-blue-50 p-3 text-blue-800" role="status">{{ aviso() }}</p> }
+  @if (mensagens().length) {
+    <div id="erros-contratacao" tabindex="-1" role="alert" class="mb-4 rounded-lg border border-red-300 bg-red-50 p-4">
+      <strong>{{ incerto() ? 'Resultado da contratação não confirmado.' : desatualizado() ? 'A edição não foi gravada.' : 'Revise os dados informados.' }}</strong>
+      <ul class="mt-1 list-disc pl-5">@for (mensagem of mensagens(); track mensagem) { <li>{{ mensagem }}</li> }</ul>
+      @if (incerto()) {
+        <button type="button" (click)="confirmar()" [disabled]="gravando()">Repetir confirmação</button>
+      }
+      @if (desatualizado()) {
+        <button type="button" (click)="recarregar()" [disabled]="gravando()">Recarregar contrato</button>
+      }
+    </div>
+  }
+  <div class="grid items-start gap-4 min-[831px]:grid-cols-[minmax(0,1.55fr)_minmax(17rem,1fr)]">
+    <form id="form-aluguel" class="m-0 grid min-w-0 gap-4" novalidate (submit)="submeter($event)">
+      <section class="rounded-xl border border-slate-300 p-4 shadow-sm">
+        <h2 class="mb-3 text-lg font-semibold">Contratante e condutor</h2>
+        <div class="grid gap-4 min-[481px]:grid-cols-2">
+          <div class="grid min-w-0 content-start gap-1">
+            <label for="aluguel-cliente">Cliente contratante</label>
+            <select id="aluguel-cliente" [formField]="formulario.clienteId" (change)="alterarCliente($any($event.target).value)"
+              [attr.aria-invalid]="erros()['clienteId'] ? 'true' : null" aria-describedby="erro-aluguel-cliente">
+              <option value="">Selecione o cliente</option>
+              @for (cliente of clientes(); track cliente.id) {
+                <option [value]="cliente.id">{{ cliente.nome }} · {{ rotuloCliente[cliente.tipo] }}</option>
+              }
+            </select>
+            <small class="text-red-800" id="erro-aluguel-cliente">{{ erros()['clienteId'] }}</small>
+          </div>
+          <div class="grid min-w-0 content-start gap-1">
+            <label for="aluguel-condutor">Condutor</label>
+            <select id="aluguel-condutor" [formField]="formulario.condutorId" (change)="alterar()"
+              [attr.aria-invalid]="erros()['condutorId'] ? 'true' : null" aria-describedby="ajuda-aluguel-condutor erro-aluguel-condutor">
+              <option value="">{{ condutores().length ? 'Selecione o condutor' : 'Nenhum condutor disponível' }}</option>
+              @for (condutor of condutores(); track condutor.id) { <option [value]="condutor.id">{{ condutor.nome }}</option> }
+            </select>
+            <small class="text-slate-600" id="ajuda-aluguel-condutor">
+              @if (carregandoCondutores()) { Carregando condutores… }
+              @else if (!modelo().clienteId) { Selecione o cliente para ver os condutores vinculados. }
+              @else if (!condutores().length && !erros()['condutorId']) { Este cliente não tem um condutor vinculado. }
+              @else if (condutores().length) { A CNH precisa estar válida no dia do retorno previsto. }
+            </small>
+            <small class="text-red-800" id="erro-aluguel-condutor">{{ erros()['condutorId'] }}</small>
+            @if (falhaCondutores()) { <button type="button" (click)="tentarCondutores()">Tentar consultar condutores novamente</button> }
+          </div>
+        </div>
+      </section>
+      <section class="rounded-xl border border-slate-300 p-4 shadow-sm">
+        <h2 class="mb-3 text-lg font-semibold">Veículo e plano</h2>
+        <div class="grid gap-4 min-[481px]:grid-cols-2">
+          <div class="grid min-w-0 content-start gap-1">
+            <label for="aluguel-veiculo">Veículo</label>
+            <select id="aluguel-veiculo" [formField]="formulario.veiculoId" (change)="alterarVeiculo($any($event.target).value)"
+              [attr.aria-invalid]="erros()['veiculoId'] ? 'true' : null" aria-describedby="erro-aluguel-veiculo">
+              <option value="">{{ veiculos().length ? 'Selecione o veículo disponível' : 'Nenhum veículo disponível' }}</option>
+              @for (veiculo of veiculos(); track veiculo.id) {
+                <option [value]="veiculo.id">{{ veiculo.placa }} — {{ veiculo.marca }} {{ veiculo.modelo }}</option>
+              }
+            </select>
+            <small class="text-red-800" id="erro-aluguel-veiculo">{{ erros()['veiculoId'] }}</small>
+          </div>
+          <div class="grid min-w-0 content-start gap-1">
+            <label for="aluguel-plano">Plano</label>
+            <select id="aluguel-plano" [formField]="formulario.planoId" (change)="alterar()"
+              [attr.aria-invalid]="erros()['planoId'] ? 'true' : null" aria-describedby="ajuda-aluguel-plano erro-aluguel-plano">
+              <option value="">{{ planos().length ? 'Selecione o plano' : 'Nenhum plano disponível' }}</option>
+              @for (plano of planos(); track plano.id) { <option [value]="plano.id">{{ rotuloPlano[plano.modalidade] }}</option> }
+            </select>
+            <small id="ajuda-aluguel-plano" class="text-slate-600">
+              @if (carregandoPlanos()) { Carregando planos… }
+              @else if (grupo(); as veiculo) { Grupo: {{ veiculo.grupoNome }}{{ planos().length || erros()['planoId'] ? '.' : ' · nenhum plano ativo.' }} }
+              @else { Selecione o veículo para ver os planos do grupo. }
+            </small>
+            <small id="erro-aluguel-plano" class="text-red-800">{{ erros()['planoId'] }}</small>
+            @if (falhaPlanos()) { <button type="button" (click)="tentarPlanos()">Tentar consultar planos novamente</button> }
+          </div>
+        </div>
+        <p class="mb-0 text-sm text-slate-600">O veículo sai com o tanque cheio.</p>
+      </section>
+      <section class="rounded-xl border border-slate-300 p-4 shadow-sm">
+        <h2 class="mb-3 text-lg font-semibold">Saída e retorno</h2>
+        <div class="grid gap-4 min-[481px]:grid-cols-2">
+          <div class="grid content-start gap-1">
+            <strong>Saída</strong><p class="m-0">{{ atual() ? horario(atual()!.dados.saida) : 'Atribuída na confirmação' }}</p>
+            <small class="text-slate-600">Horário de São Paulo · não editável</small>
+          </div>
+          <div class="grid min-w-0 content-start gap-1">
+            <label for="aluguel-retorno">Retorno previsto</label>
+            <input id="aluguel-retorno" type="text" placeholder="dd/mm/aaaa hh:mm" [formField]="formulario.retornoPrevisto" (input)="alterar()"
+              [attr.aria-invalid]="erros()['retornoPrevisto'] ? 'true' : null" aria-describedby="ajuda-aluguel-retorno erro-aluguel-retorno">
+            <small id="ajuda-aluguel-retorno" class="text-slate-600">Dia/mês/ano e hora no formato de 24 h, no horário de São Paulo.</small>
+            <small id="erro-aluguel-retorno" class="text-red-800">{{ erros()['retornoPrevisto'] }}</small>
+          </div>
+          <div class="grid min-w-0 content-start gap-1">
+            <label for="aluguel-hodometro">Hodômetro inicial (km)</label>
+            <input id="aluguel-hodometro" type="text" inputmode="numeric" [formField]="formulario.hodometroInicial" (input)="alterar()"
+              [attr.aria-invalid]="erros()['hodometroInicial'] ? 'true' : null" aria-describedby="erro-aluguel-hodometro">
+            <small id="erro-aluguel-hodometro" class="text-red-800">{{ erros()['hodometroInicial'] }}</small>
+          </div>
+        </div>
+      </section>
+      <section class="grid gap-3 rounded-xl border border-slate-300 p-4 shadow-sm">
+        <h2 class="text-lg font-semibold">Taxas e seguros</h2>
+        <fieldset class="min-w-0">
+          <legend class="mb-1 font-semibold">Taxas e serviços opcionais</legend>
+          <div class="grid gap-2">
+            @for (taxa of taxas(); track taxa.id) {
+              <label class="flex items-start gap-2 rounded-lg border border-slate-200 p-2.5 has-checked:border-blue-300 has-checked:bg-blue-50">
+                <input class="mt-0.5" type="checkbox" [checked]="selecionadas().has(taxa.id)" [disabled]="bloqueado()"
+                  [attr.aria-invalid]="erros()['taxaIds'] ? 'true' : null" aria-describedby="erro-aluguel-taxas" (change)="alternarTaxa(taxa.id, $event)">
+                <span class="[overflow-wrap:anywhere]">{{ taxa.nome }}
+                  <small class="block font-normal text-slate-600">{{ moeda(precoTaxa(taxa)) }} · {{ taxa.modalidade === 'Fixa' ? 'cobrança única' : 'por diária' }}</small>
+                </span>
+              </label>
+            }
+          </div>
+          <small class="text-red-800" id="erro-aluguel-taxas">{{ erros()['taxaIds'] }}</small>
+        </fieldset>
+        <fieldset class="min-w-0">
+          <legend class="mb-1 font-semibold">Seguros opcionais</legend>
+          <div class="grid gap-2">
+            @for (tipo of tiposSeguro; track tipo) {
+              @let campo = tipo === 'Cliente' ? 'seguros.cliente' : 'seguros.terceiros';
+              @let mensagem = erros()[campo] ?? erros()['seguros'];
+              <label class="flex items-start gap-2 rounded-lg border border-slate-200 p-2.5 has-checked:border-blue-300 has-checked:bg-blue-50">
+                <input class="mt-0.5" type="checkbox" [formField]="tipo === 'Cliente' ? formulario.seguroCliente : formulario.seguroTerceiros"
+                  (change)="alterar()" [attr.aria-invalid]="mensagem ? 'true' : null" [attr.aria-describedby]="'erro-' + tipo">
+                <span>{{ rotuloSeguro[tipo] }}
+                  <small class="block font-normal text-slate-600">
+                    {{ precoSeguro(tipo) == null ? 'Preço não configurado' : moeda(precoSeguro(tipo)) + ' · por diária' }}
+                  </small>
+                  <small [id]="'erro-' + tipo" class="block font-normal text-red-800">{{ mensagem }}</small>
+                </span>
+              </label>
+            }
+          </div>
+        </fieldset>
+      </section>
+      <div class="flex flex-wrap gap-2">
+        <button class="mt-0 border border-slate-400 bg-white py-2 text-slate-900" type="button" [disabled]="bloqueado()" (click)="voltar.emit()">
+          {{ atual() ? 'Voltar ao contrato' : 'Voltar aos aluguéis' }}
+        </button>
+        <button class="mt-0" type="submit" [disabled]="bloqueado() || desatualizado() || carregandoCondutores() || carregandoPlanos()">
+          {{ atual() ? (gravando() ? 'Salvando…' : 'Salvar alterações') : (calculando() ? 'Calculando…' : 'Calcular estimativa') }}
+        </button>
+      </div>
+    </form>
+    <app-demonstrativo-aluguel [titulo]="atual() ? 'Demonstrativo atual' : 'Estimativa da contratação'"
+      [estimativa]="atual()?.dados?.estimativa ?? previa()" [criacao]="!atual()">
+      @if (!atual()) {
+        <footer class="border-t border-slate-200 p-4">
+          <button id="confirmar-aluguel" class="mt-0 w-full" form="form-aluguel" type="submit" [disabled]="!previa() || bloqueado()">
+            {{ gravando() ? 'Confirmando…' : 'Confirmar contratação' }}
+          </button>
+        </footer>
+      }
+    </app-demonstrativo-aluguel>
+  </div>
+}

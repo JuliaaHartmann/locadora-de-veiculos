@@ -19,6 +19,11 @@ export const routes: Routes = [
     canActivate: [authGuard],
     loadComponent: () => import('./precos.component').then(m => m.PrecosComponent),
   },
+  {
+    path: 'alugueis',
+    canActivate: [authGuard],
+    loadComponent: () => import('./locacoes/alugueis.component').then(m => m.AlugueisComponent),
+  },
   { path: '', canActivate: [authGuard], loadComponent: () => import('./painel.component').then(m => m.PainelComponent) },
   { path: '**', redirectTo: '' },
 ];

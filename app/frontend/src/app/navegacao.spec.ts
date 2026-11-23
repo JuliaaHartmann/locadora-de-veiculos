@@ -15,7 +15,7 @@ describe('Navegação protegida dos cadastros', () => {
       providers: [provideRouter(routes), { provide: SessaoService, useValue: { autenticada } }],
     });
   });
-  it.each(['frota', 'pessoas', 'precos'])('protege a rota %s com a sessão em memória', caminho => {
+  it.each(['frota', 'pessoas', 'precos', 'alugueis'])('protege a rota %s com a sessão em memória', caminho => {
     expect(routes.find(x => x.path === caminho)?.canActivate).toEqual([authGuard]);
     const negado = TestBed.runInInjectionContext(() => authGuard({} as ActivatedRouteSnapshot, {} as RouterStateSnapshot));
     expect(negado instanceof UrlTree).toBe(true);
@@ -29,6 +29,6 @@ describe('Navegação protegida dos cadastros', () => {
     autenticada.set(true);
     fixture.detectChanges();
     const links = [...fixture.nativeElement.querySelectorAll('nav a')] as HTMLAnchorElement[];
-    expect(links.map(x => x.getAttribute('href'))).toEqual(['/', '/frota', '/pessoas', '/precos']);
+    expect(links.map(x => x.getAttribute('href'))).toEqual(['/', '/frota', '/pessoas', '/precos', '/alugueis']);
   });
 });
