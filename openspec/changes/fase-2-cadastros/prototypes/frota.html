@@ -1,0 +1,106 @@
+<!doctype html>
+<!--
+Source: proposal.md (What Changes), specs/grupos-planos-veiculos/spec.md
+Style: project slate/blue tokens; plain inline CSS, no library.
+Covered:
+ - Gestão de grupos de veículos / Criar e consultar grupo, Editar grupo, Exclusão impedida por vínculo, Lista de grupos vazia -> group editor/table/delete.
+ - Configuração de planos por grupo / Configurar modalidades, Consultar planos do grupo, Editar parâmetros do plano, Parâmetros inválidos de plano, Exclusão permitida de plano, Modalidade duplicada no grupo -> plan editor/table/errors/delete.
+ - Gestão de veículos sem fotos na F2 / Cadastrar veículo, Capacidade inválida, Placa já ativa na empresa, Placa de veículo excluído logicamente, Foto indisponível nesta fase, Filtrar frota por grupo, Agrupar frota por grupo, Editar dados do veículo -> car fields/table/filter/group/delete.
+ - Validação e histórico de frota / Dados inválidos, Exclusão lógica de veículo permitido -> soft delete and field errors.
+ - Estados acessíveis das consultas e formulários de frota / Consultar lista de frota, Consulta indisponível, Cadastro confirmado ou rejeitado -> pager/status/retry/error summary.
+Not specified (presentational only): brand and layout; review-only state selector.
+Open questions: none.
+Not simulated: authentication, cross-tenant authorization, SQL concurrency, rentals/history (F3/F4).
+All data fictional. Memory only; no backend, network, storage, external assets or build.
+-->
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>Frota — protótipo para revisão</title>
+<style>
+:root{font-family:system-ui,sans-serif;color:#0f172a;background:#f8fafc;line-height:1.5}*{box-sizing:border-box}body{margin:0}button,input,select{font:inherit}button{cursor:pointer}button:disabled{cursor:default;opacity:.55}
+:focus-visible,[tabindex="-1"]:focus{outline:3px solid #1d4ed8;outline-offset:3px}.skip{position:absolute;left:-9999px}.skip:focus{left:1rem;top:1rem;background:white;padding:1rem;z-index:5}
+.banner{background:#eff6ff;border-bottom:1px solid #bfdbfe;color:#1e40af;padding:1rem 2rem;font-size:.85rem}.banner p{margin:0 0 .5rem}
+header,main{max-width:1200px;margin:auto;padding:1.5rem}header{display:flex;gap:2rem;align-items:center;flex-wrap:wrap}.brand{font-size:1.1rem;font-weight:800}.brand b{color:#1d4ed8}nav{display:flex;gap:.5rem;flex-wrap:wrap}
+h1{font-size:1.9rem;margin:.1rem 0}h2{font-size:1.2rem;margin:0}.muted{color:#475569}.card{border:1px solid #cbd5e1;border-radius:12px;background:white;box-shadow:0 2px 4px #0f172a08;margin:1rem 0;overflow:hidden}
+.bar,.pager{padding:1rem;display:flex;gap:1rem;align-items:center;justify-content:space-between;flex-wrap:wrap}
+button{border:1px solid #94a3b8;background:#fff;border-radius:7px;padding:.5rem .8rem;color:#1e293b}button.primary,nav button[aria-current=page]{background:#1d4ed8;color:white;border-color:#1d4ed8}
+input,select{border:1px solid #64748b;border-radius:7px;padding:.55rem;max-width:100%;background:white;color:#0f172a}
+label{font-weight:600}form{padding:1rem}.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}.field{display:grid;gap:.3rem}
+.error{color:#991b1b}.error:empty{display:none}.summary{padding:1rem;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px}
+.table{overflow:auto}table{border-collapse:collapse;width:100%;min-width:700px}th,td{text-align:left;padding:.8rem;border-bottom:1px solid #e2e8f0}th{background:#f1f5f9;color:#475569;font-size:.85rem}td button{margin:.1rem}.empty{padding:2rem;text-align:center}
+[hidden]{display:none!important}@media(max-width:650px){header,main{padding:1rem}.banner{padding:1rem}.fields{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<a class="skip" href="#content">Ir para o conteúdo</a>
+<aside class="banner" aria-label="Informações para revisão">
+<p><strong>Protótipo navegável · dados fictícios · somente memória.</strong> Recarregar restaura os exemplos. Bloqueios por aluguel e autorização serão verificados nas respectivas fases, não neste HTML.</p>
+<label for="review">Revisão: estado da consulta</label>
+<select id="review"><option value="ok">Normal</option><option value="loading">Carregando</option><option value="empty">Resposta vazia</option><option value="error">Erro de consulta</option></select>
+</aside>
+<header><div class="brand">Locadora <b>Admin</b></div><nav aria-label="Cadastros da frota"><button data-view="groups">Grupos</button><button data-view="plans">Planos</button><button data-view="cars">Veículos</button></nav></header>
+<main id="content"><p class="muted">Cadastros / Frota e preços</p><h1 id="title">Grupos</h1><p class="muted">Prepare os grupos, as modalidades e os dados da frota.</p>
+<p id="status" role="status"></p><div id="summary" class="summary" role="alert" tabindex="-1" hidden></div>
+<section id="list" class="card"></section><section id="editor" class="card" hidden></section></main>
+<script>
+"use strict";
+const $=s=>document.querySelector(s), esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const db={groups:[{id:"G-1",name:"Compactos — exemplo"}],plans:[{id:"P-1",group:"G-1",mode:"Diário",daily:"120.00",km:"1.50",quota:""}],cars:[{id:"V-1",plate:"FIC1A23",brand:"Aurora fictícia",model:"Lume de demonstração",color:"Prata",fuel:"Gasolina",capacity:"50.000",year:"2026",group:"G-1"}]};
+let view="groups",page=1,filter="",grouped=false,sequence=1;
+const names={groups:"Grupos",plans:"Planos",cars:"Veículos"};
+const active=k=>db[k].filter(x=>!x.deleted), groupName=id=>db.groups.find(g=>g.id===id)?.name??"Grupo excluído";
+function money(v){const [a,b=""]=String(v).split(".");return "R$ "+a.replace(/\B(?=(\d{3})+(?!\d))/g,".")+","+b.padEnd(2,"0")}
+function report(text){$("#status").textContent=text}
+function fail(errors){const box=$("#summary");box.hidden=false;box.textContent=Object.values(errors).join(" ");box.focus();for(const [key,text]of Object.entries(errors)){const field=document.getElementById(key),hint=document.getElementById(key+"-error");if(field){field.setAttribute("aria-invalid","true");if(hint)hint.textContent=text}}}
+function clearErrors(){$("#summary").hidden=true;document.querySelectorAll("[aria-invalid]").forEach(x=>x.removeAttribute("aria-invalid"));document.querySelectorAll(".error").forEach(x=>x.textContent="")}
+function render(){
+ $("#editor").hidden=true;$("#list").hidden=false;$("#title").textContent=names[view];clearErrors();
+ document.querySelectorAll("[data-view]").forEach(b=>b.setAttribute("aria-current",b.dataset.view===view?"page":"false"));
+ const state=$("#review").value;
+ if(state!=="ok"){$("#list").innerHTML=state==="error"?'<div class="empty" role="alert">Não foi possível consultar. <button id="retry">Tentar novamente</button></div>':`<p class="empty" role="status">${state==="loading"?"Carregando cadastros…":"Nenhum registro encontrado."}</p>`;if($("#retry"))$("#retry").onclick=()=>{$("#review").value="ok";render()};return}
+ let items=active(view);if(view==="cars"&&filter)items=items.filter(x=>x.group===filter);if(view==="cars"&&grouped)items.sort((a,b)=>groupName(a.group).localeCompare(groupName(b.group))||a.id.localeCompare(b.id));
+ const total=items.length;page=Math.min(page,Math.max(1,Math.ceil(total/20)));const slice=items.slice((page-1)*20,page*20);
+ const columns=view==="groups"?["ID","Nome","Planos e valores","Ações"]:view==="plans"?["ID","Grupo","Modalidade","Parâmetros","Ações"]:["ID","Placa","Marca / modelo","Cor","Combustível","Grupo","Ações"];
+ let lastGroup="";
+ const rows=slice.map(x=>{
+  let head="";if(view==="cars"&&grouped&&lastGroup!==x.group){head=`<tr><th colspan="7" scope="rowgroup">${esc(groupName(x.group))}</th></tr>`;lastGroup=x.group}
+  const parameters=p=>`${p.mode}: ${money(p.daily)}/dia${p.mode==="Diário"?" · "+money(p.km)+"/km":p.mode==="Controlado"?" · "+p.quota+" km/dia · "+money(p.km)+"/km excedente":""}`;
+  const values=view==="groups"?[x.id,x.name,active("plans").filter(p=>p.group===x.id).map(parameters).join("; ")||"Sem planos"]:view==="plans"?[x.id,groupName(x.group),x.mode,parameters(x)]:[x.id,x.plate,x.brand+" / "+x.model,x.color,x.fuel,groupName(x.group)];
+  return head+"<tr>"+values.map(v=>`<td>${esc(v)}</td>`).join("")+`<td><button data-edit="${x.id}">Editar</button><button data-delete="${x.id}">Excluir</button></td></tr>`;
+ }).join("");
+ $("#list").innerHTML=`<div class="bar"><h2>${names[view]} cadastrados</h2><button class="primary" id="new">Cadastrar</button></div>${view==="cars"?`<div class="bar"><label for="filter">Filtrar por grupo <select id="filter"><option value="">Todos os grupos</option>${active("groups").map(g=>`<option value="${g.id}" ${filter===g.id?"selected":""}>${esc(g.name)}</option>`).join("")}</select></label><label><input id="grouped" type="checkbox" ${grouped?"checked":""}> Agrupar por grupo</label></div>`:""}<div class="table"><table><thead><tr>${columns.map(c=>`<th scope="col">${c}</th>`).join("")}</tr></thead><tbody>${rows||`<tr><td class="empty" colspan="${columns.length}">Nenhum registro encontrado.</td></tr>`}</tbody></table></div><div class="pager"><span>Página ${page} · ${total} registros · até 20 por página</span><div><button id="prev" ${page<=1?"disabled":""}>Anterior</button> <button id="next" ${page*20>=total?"disabled":""}>Próxima</button></div></div>`;
+ $("#new").onclick=()=>edit();$("#prev").onclick=()=>{page--;render()};$("#next").onclick=()=>{page++;render()};
+ if($("#filter")){$("#filter").onchange=e=>{filter=e.target.value;page=1;render()};$("#grouped").onchange=e=>{grouped=e.target.checked;page=1;render()}}
+ document.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>edit(b.dataset.edit));
+ document.querySelectorAll("[data-delete]").forEach(b=>b.onclick=()=>{
+  const x=active(view).find(x=>x.id===b.dataset.delete);
+  if(view==="groups"&&(db.plans.some(p=>p.group===x.id)||db.cars.some(c=>c.group===x.id))){fail({action:"O grupo possui vínculos com planos ou veículos e não pode ser excluído."});return}
+  x.deleted=true;render();report("Cadastro excluído logicamente neste protótipo.");
+ });
+}
+function edit(id){
+ clearErrors();const old=active(view).find(x=>x.id===id)??{},locked=!!id&&view==="plans";
+ const groupOptions=active("groups").map(g=>[g.id,g.name]);
+ let defs=view==="groups"?[["name","Nome do grupo"]]:view==="plans"?[["group","Grupo",groupOptions],["mode","Modalidade",["Diário","Controlado","Livre"]],["daily","Preço diário (R$)"],["km","Preço por quilômetro (R$)"],["quota","Franquia diária (km)"]]:[["plate","Placa"],["brand","Marca"],["model","Modelo"],["color","Cor"],["fuel","Combustível",["Gasolina","Gás","Diesel","Álcool"]],["capacity","Capacidade (litros)"],["year","Ano"],["group","Grupo",groupOptions]];
+ $("#list").hidden=true;$("#editor").hidden=false;
+ $("#editor").innerHTML=`<div class="bar"><h2>${id?"Editar":"Cadastrar"} — ${names[view]}</h2></div><form novalidate><div class="fields">${defs.map(([key,label,options])=>`<div class="field" id="${key}-wrap"><label for="${key}">${label}</label>${options?`<select id="${key}" name="${key}" ${locked&&["group","mode"].includes(key)?"disabled":""}><option value="">Selecione</option>${options.map(o=>{const [value,text]=Array.isArray(o)?o:[o,o];return `<option value="${esc(value)}" ${old[key]===value?"selected":""}>${esc(text)}</option>`}).join("")}</select>`:`<input id="${key}" name="${key}" value="${esc(old[key])}" inputmode="${["daily","km","capacity"].includes(key)?"decimal":["quota","year"].includes(key)?"numeric":"text"}">`}<small class="error" id="${key}-error"></small></div>`).join("")}</div>${view==="plans"?'<p class="muted">Novos preços valem para novas contratações. Valores já contratados são preservados.</p>':""}<div class="bar"><button type="button" id="cancel">Cancelar</button><button class="primary">Salvar</button></div></form>`;
+ defs.forEach(([k])=>document.getElementById(k).setAttribute("aria-describedby",k+"-error"));
+ function sync(){if(view!=="plans")return;const mode=$("#mode").value;$("#km-wrap").hidden=mode==="Livre";$("#quota-wrap").hidden=mode!=="Controlado";$("label[for=km]").textContent=mode==="Controlado"?"Preço por quilômetro excedente (R$)":"Preço por quilômetro (R$)"}
+ if(view==="plans"){$("#mode").onchange=sync;sync()}
+ $("#cancel").onclick=render;$("#editor form").onsubmit=e=>{
+  e.preventDefault();clearErrors();const data={...old},errors={};
+  defs.forEach(([k])=>data[k]=document.getElementById(k).value.trim());
+  const required=defs.map(d=>d[0]).filter(k=>view!=="plans"||!(k==="km"&&data.mode==="Livre"||k==="quota"&&data.mode!=="Controlado"));
+  required.forEach(k=>{if(!data[k])errors[k]="Preencha este campo."});
+  for(const k of ["daily","km","capacity"]){if(!required.includes(k)||!data[k])continue;const raw=data[k].replace(",",".");if(!/^\d+(\.\d+)?$/.test(raw)||k==="capacity"&&Number(raw)<=0)errors[k]=k==="capacity"?"Informe capacidade positiva.":"Informe preço não negativo.";else data[k]=raw}
+  if(data.quota&&data.mode==="Controlado"&&!/^\d+$/.test(data.quota))errors.quota="Informe franquia inteira não negativa.";
+  if(view==="plans"){if(data.mode==="Livre")data.km="";if(data.mode!=="Controlado")data.quota="";if(active("plans").some(p=>p.id!==id&&p.group===data.group&&p.mode===data.mode))errors.mode="Já existe plano desta modalidade no grupo."}
+  if(view==="cars"){data.plate=data.plate.replace(/[^a-z0-9]/gi,"").toUpperCase();if(active("cars").some(c=>c.id!==id&&c.plate===data.plate))errors.plate="Placa já usada por veículo ativo."}
+  if(Object.keys(errors).length){fail(errors);return}
+  if(id)Object.assign(old,data);else db[view].push({...data,id:({groups:"G",plans:"P",cars:"V"}[view])+"-"+(++sequence),deleted:false});
+  render();report("Cadastro salvo neste protótipo.");
+ };$("#editor input, #editor select")?.focus();
+}
+document.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>{view=b.dataset.view;page=1;render()});$("#review").onchange=render;render();
+</script></body></html>

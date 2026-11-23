@@ -1,0 +1,104 @@
+<!doctype html>
+<!--
+Source: proposal.md (What Changes), specs/pessoas/spec.md
+Style: plain inline CSS based on project slate/blue tokens; no library.
+Covered:
+ - Cadastro de clientes pessoa física e jurídica / Cadastrar cliente PF, Cadastrar cliente PJ, Campos obrigatórios por tipo, Editar cliente com dados atuais, E-mail opcional e endereço, Tipo de cliente selecionado, Documento inválido ou duplicado, Reutilizar documento de cadastro excluído -> client editor and table.
+ - Vínculo entre clientes PF e PJ / Associar PF a PJ, Remover vínculo PF–PJ -> separate link editor.
+ - Cadastro de condutores e elegibilidade documental / Cadastrar condutor vinculado, Cliente PF como próprio condutor, Preencher condutor a partir de cliente PF, Cliente PJ com condutor PF, Editar condutor com dados atuais, CPF inválido ou duplicado entre condutores ativos, CNH e validade obrigatórias, Manter cadastro com CNH vencida, Reutilizar CPF de condutor excluído, CNH coerente entre cliente PF e condutor da mesma pessoa -> driver editor and coordinated license update.
+ - Isolamento, privacidade e preservação de pessoas / Exclusão lógica de cadastro permitido, Erro sem exposição de documento -> soft delete, no technical logging.
+ - Estados acessíveis de pessoas / Consultar clientes ou condutores, Falha de consulta, Validação ou conflito de gravação, Exclusão ou gravação confirmada -> pagination, state selector, summary, retry and status.
+Not specified (presentational only): brand and layout; review-only state selector.
+Open questions: none.
+Not simulated: authorization, SQL concurrency, rental restrictions/history (F3/F4).
+Synthetic documents generated from fictional base digits, not real identities or official validation.
+Memory only; no network, backend, storage or external assets.
+-->
+<html lang="pt-BR">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>Pessoas — protótipo para revisão</title>
+<style>
+:root{font-family:system-ui,sans-serif;color:#0f172a;background:#f8fafc;line-height:1.5}*{box-sizing:border-box}body{margin:0}button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.55;cursor:default}
+:focus-visible,[tabindex="-1"]:focus{outline:3px solid #1d4ed8;outline-offset:3px}.skip{position:absolute;left:-9999px}.skip:focus{left:1rem;top:1rem;background:white;padding:1rem;z-index:5}
+.banner{background:#eff6ff;border-bottom:1px solid #bfdbfe;color:#1e40af;padding:1rem 2rem;font-size:.85rem}.banner p{margin:0 0 .5rem}
+header,main{max-width:1200px;margin:auto;padding:1.5rem}header{display:flex;gap:2rem;align-items:center;flex-wrap:wrap}.brand{font-size:1.1rem;font-weight:800}.brand b{color:#1d4ed8}nav{display:flex;gap:.5rem;flex-wrap:wrap}
+h1{font-size:1.9rem;margin:.1rem 0}h2{font-size:1.2rem;margin:0}.muted{color:#475569}.card{border:1px solid #cbd5e1;border-radius:12px;background:white;box-shadow:0 2px 4px #0f172a08;margin:1rem 0;overflow:hidden}
+.bar,.pager{padding:1rem;display:flex;gap:1rem;align-items:center;justify-content:space-between;flex-wrap:wrap}button{border:1px solid #94a3b8;background:#fff;border-radius:7px;padding:.5rem .8rem;color:#1e293b}
+button.primary,nav button[aria-current=page]{background:#1d4ed8;color:white;border-color:#1d4ed8}input,select{border:1px solid #64748b;border-radius:7px;padding:.55rem;max-width:100%;background:white;color:#0f172a}
+label{font-weight:600}form{padding:1rem}.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}.field{display:grid;gap:.3rem}.error{color:#991b1b}.error:empty{display:none}
+.summary{padding:1rem;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px}.table{overflow:auto}table{border-collapse:collapse;width:100%;min-width:800px}th,td{text-align:left;padding:.8rem;border-bottom:1px solid #e2e8f0}th{background:#f1f5f9;color:#475569;font-size:.85rem}td button{margin:.1rem}.empty{padding:2rem;text-align:center}
+[hidden]{display:none!important}@media(max-width:650px){header,main{padding:1rem}.banner{padding:1rem}.fields{grid-template-columns:1fr}}
+</style></head>
+<body><a class="skip" href="#content">Ir para o conteúdo</a>
+<aside class="banner" aria-label="Informações para revisão"><p><strong>Protótipo · somente dados fictícios e memória.</strong> Não valida documentos oficialmente. Recarregar restaura os exemplos. Restrições de aluguel dependem da F3.</p><label for="review">Revisão: estado da consulta</label> <select id="review"><option value="ok">Normal</option><option value="loading">Carregando</option><option value="empty">Resposta vazia</option><option value="error">Erro de consulta</option></select></aside>
+<header><div class="brand">Locadora <b>Admin</b></div><nav aria-label="Pessoas"><button data-view="clients">Clientes</button><button data-view="drivers">Condutores</button></nav></header>
+<main id="content"><p class="muted">Cadastros / Pessoas</p><h1 id="title">Clientes</h1><p class="muted">Clientes PF/PJ, vínculos e condutores da empresa.</p>
+<p id="status" role="status"></p><div id="summary" class="summary" role="alert" tabindex="-1" hidden></div><section id="list" class="card"></section><section id="editor" class="card" hidden></section></main>
+<script>
+"use strict";
+const $=s=>document.querySelector(s),esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const digits=v=>String(v).replace(/\D/g,"");
+function checkDigit(base,weights){const rem=Array.from(base).reduce((s,n,i)=>s+Number(n)*weights[i],0)%11;return String(rem<2?0:11-rem)}
+function makeDoc(base,type){let v=base;const weights=type==="PF"?[10,9,8,7,6,5,4,3,2]:[5,4,3,2,9,8,7,6,5,4,3,2];v+=checkDigit(v,weights);v+=checkDigit(v,type==="PF"?[11,...weights]:[6,...weights]);return v}
+function validDoc(v,type){v=digits(v);const size=type==="PF"?11:14;return v.length===size&&!/^(\d)\1+$/.test(v)&&makeDoc(v.slice(0,size-2),type)===v}
+const syntheticCpf=makeDoc("923456781","PF"),syntheticCnpj=makeDoc("926543210001","PJ");
+const db={clients:[{id:"C-1",type:"PF",name:"Pessoa fictícia Aurora",cpf:syntheticCpf,rg:"RG-EXEMPLO-1",license:"CNH-FICTICIA-1",phone:"(00) 90000-0001",email:"aurora@example.invalid",state:"Estado de exemplo",city:"Cidade fictícia",district:"Bairro de exemplo",street:"Rua fictícia",number:"1"},{id:"C-2",type:"PJ",name:"Empresa fictícia Horizonte",cnpj:syntheticCnpj,phone:"(00) 4000-0002",email:"empresa@example.invalid",state:"Estado de exemplo",city:"Cidade fictícia",district:"Bairro de exemplo",street:"Rua fictícia",number:"2"}],drivers:[],links:[]};
+let view="clients",page=1,sequence=2;
+const active=k=>db[k].filter(x=>!x.deleted),name=id=>db.clients.find(c=>c.id===id)?.name??"Cliente excluído";
+function status(text){$("#status").textContent=text}
+function clearErrors(){$("#summary").hidden=true;document.querySelectorAll("[aria-invalid]").forEach(x=>x.removeAttribute("aria-invalid"));document.querySelectorAll(".error").forEach(x=>x.textContent="")}
+function fail(errors){$("#summary").hidden=false;$("#summary").textContent=Object.values(errors).join(" ");$("#summary").focus();for(const [key,text]of Object.entries(errors)){const f=document.getElementById(key);if(f)f.setAttribute("aria-invalid","true");const hint=document.getElementById(key+"-error");if(hint)hint.textContent=text}}
+function render(){
+ clearErrors();$("#editor").hidden=true;$("#list").hidden=false;$("#title").textContent=view==="clients"?"Clientes":"Condutores";
+ document.querySelectorAll("[data-view]").forEach(b=>b.setAttribute("aria-current",b.dataset.view===view?"page":"false"));
+ const state=$("#review").value;if(state!=="ok"){$("#list").innerHTML=state==="error"?'<div class="empty" role="alert">Não foi possível consultar. <button id="retry">Tentar novamente</button></div>':`<p class="empty" role="status">${state==="loading"?"Carregando cadastros…":"Nenhum registro encontrado."}</p>`;if($("#retry"))$("#retry").onclick=()=>{$("#review").value="ok";render()};return}
+ const items=active(view),total=items.length;page=Math.min(page,Math.max(1,Math.ceil(total/20)));
+ const headers=view==="clients"?["ID","Nome / tipo","Telefone","Documentos","Vínculos PJ","Ações"]:["ID","Condutor","Cliente","CPF","CNH","Validade","Ações"];
+ const rows=items.slice((page-1)*20,page*20).map(x=>{
+  const values=view==="clients"?[x.id,x.name+" / "+x.type,x.phone,x.type==="PF"?`CPF ${x.cpf} · RG ${x.rg} · CNH ${x.license}`:`CNPJ ${x.cnpj}`,db.links.filter(l=>l.pf===x.id&&active("clients").some(c=>c.id===l.pj)).map(l=>name(l.pj)).join("; ")||"Sem vínculos"]: [x.id,x.name,name(x.client),x.cpf,x.license,x.valid];
+  return "<tr>"+values.map(v=>`<td>${esc(v)}</td>`).join("")+`<td><button data-edit="${x.id}">Editar</button><button data-delete="${x.id}">Excluir</button>${view==="clients"&&x.type==="PF"?`<button data-links="${x.id}">Vínculos PJ</button><button data-self="${x.id}">Usar como condutor</button>`:""}</td></tr>`;
+ }).join("");
+ $("#list").innerHTML=`<div class="bar"><h2>${view==="clients"?"Clientes":"Condutores"} cadastrados</h2><button class="primary" id="new">Cadastrar</button></div><div class="table"><table><thead><tr>${headers.map(h=>`<th scope="col">${h}</th>`).join("")}</tr></thead><tbody>${rows||`<tr><td class="empty" colspan="${headers.length}">Nenhum registro encontrado.</td></tr>`}</tbody></table></div><div class="pager"><span>Página ${page} · ${total} registros · até 20 por página</span><div><button id="prev" ${page<=1?"disabled":""}>Anterior</button> <button id="next" ${page*20>=total?"disabled":""}>Próxima</button></div></div>`;
+ $("#new").onclick=()=>edit();$("#prev").onclick=()=>{page--;render()};$("#next").onclick=()=>{page++;render()};
+ document.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>edit(b.dataset.edit));
+ document.querySelectorAll("[data-delete]").forEach(b=>b.onclick=()=>{active(view).find(x=>x.id===b.dataset.delete).deleted=true;render();status("Cadastro excluído logicamente neste protótipo.")});
+ document.querySelectorAll("[data-links]").forEach(b=>b.onclick=()=>links(b.dataset.links));
+ document.querySelectorAll("[data-self]").forEach(b=>b.onclick=()=>{const c=active("clients").find(x=>x.id===b.dataset.self);view="drivers";edit(undefined,{name:c.name,cpf:c.cpf,license:c.license,email:c.email,phone:c.phone,client:c.id})});
+}
+function links(id){
+ clearErrors();$("#list").hidden=true;$("#editor").hidden=false;
+ const pjs=active("clients").filter(c=>c.type==="PJ");
+ $("#editor").innerHTML=`<div class="bar"><h2>Vínculos PJ — ${esc(name(id))}</h2></div><form><div class="fields">${pjs.map(c=>`<label><input type="checkbox" name="pj" value="${c.id}" ${db.links.some(l=>l.pf===id&&l.pj===c.id)?"checked":""}> ${esc(c.name)}</label>`).join("")||"<p>Nenhum cliente PJ cadastrado.</p>"}</div><p class="muted">Desmarque um vínculo para removê-lo. Isto não altera o vínculo direto do condutor com o contratante.</p><div class="bar"><button type="button" id="cancel">Cancelar</button><button class="primary">Salvar vínculos</button></div></form>`;
+ $("#cancel").onclick=render;$("#editor form").onsubmit=e=>{e.preventDefault();const selected=new FormData(e.target).getAll("pj");db.links=db.links.filter(l=>l.pf!==id).concat(selected.map(pj=>({pf:id,pj})));render();status("Vínculos atualizados neste protótipo.")};
+}
+function edit(id,seed={}){
+ clearErrors();const old=active(view).find(x=>x.id===id)??seed;
+ const clients=active("clients").map(c=>[c.id,c.name+" ("+c.type+")"]);if(old.client&&!clients.some(c=>c[0]===old.client))clients.push([old.client,name(old.client)+" — excluído"]);
+ const defs=view==="clients"?[["type","Tipo",["PF","PJ"]],["name","Nome"],["cpf","CPF"],["rg","RG"],["license","CNH"],["cnpj","CNPJ"],["phone","Telefone"],["email","E-mail (opcional)"],["state","Estado"],["city","Cidade"],["district","Bairro"],["street","Rua"],["number","Número"]]:[["client","Cliente vinculado",clients],["name","Nome"],["cpf","CPF"],["license","CNH"],["valid","Validade da CNH",null,"date"],["phone","Telefone"],["email","E-mail",null,"email"]];
+ $("#list").hidden=true;$("#editor").hidden=false;
+ $("#editor").innerHTML=`<div class="bar"><h2>${id?"Editar":"Cadastrar"} — ${view==="clients"?"cliente":"condutor"}</h2></div><form novalidate><div class="fields">${defs.map(([k,label,options,type])=>`<div class="field" id="${k}-wrap"><label for="${k}">${label}</label>${options?`<select id="${k}"><option value="">Selecione</option>${options.map(o=>{const [v,t]=Array.isArray(o)?o:[o,o];return `<option value="${esc(v)}" ${old[k]===v||k==="type"&&!old[k]&&v==="PF"?"selected":""}>${esc(t)}</option>`}).join("")}</select>`:`<input id="${k}" type="${type??"text"}" value="${esc(old[k])}">`}<small class="error" id="${k}-error"></small></div>`).join("")}</div><p class="muted">Dados fictícios. Nenhuma consulta oficial é realizada.${view==="drivers"?" Validade vencida não impede cadastro; elegibilidade é verificada na contratação.":""}</p><div class="bar"><button type="button" id="cancel">Cancelar</button><button class="primary">Salvar cadastro</button></div></form>`;
+ defs.forEach(([k])=>document.getElementById(k).setAttribute("aria-describedby",k+"-error"));
+ function sync(){if(view!=="clients")return;const pf=$("#type").value==="PF";["cpf","rg","license"].forEach(k=>document.getElementById(k+"-wrap").hidden=!pf);$("#cnpj-wrap").hidden=pf}
+ if(view==="clients"){$("#type").onchange=sync;sync()}$("#cancel").onclick=render;
+ $("#editor form").onsubmit=e=>{
+  e.preventDefault();clearErrors();const data={...old},errors={};defs.forEach(([k])=>data[k]=document.getElementById(k).value.trim());
+  const required=defs.map(d=>d[0]).filter(k=>!(view==="clients"&&(k==="email"||(data.type==="PJ"?["cpf","rg","license"]:["cnpj"]).includes(k))));
+  required.forEach(k=>{if(!data[k])errors[k]="Preencha este campo."});
+  const kind=view==="clients"?data.type:"PF",key=kind==="PF"?"cpf":"cnpj";data[key]=digits(data[key]??"");
+  if(!validDoc(data[key],kind))errors[key]="Informe documento válido pelos dígitos verificadores.";
+  if(active(view).some(x=>x.id!==id&&(view==="drivers"||x.type===kind)&&x[key]===data[key]))errors[key]="Documento já usado por registro ativo neste cadastro.";
+  if(data.email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email))errors.email="Informe e-mail válido.";
+  if(view==="drivers"&&data.valid&&!/^\d{4}-\d{2}-\d{2}$/.test(data.valid))errors.valid="Informe uma data válida.";
+  if(!id&&data.cpf){
+   const counterparts=[...active("clients").filter(c=>c.type==="PF"),...active("drivers")].filter(x=>x.cpf===data.cpf);
+   if(counterparts.some(x=>x.license!==data.license))errors.license="A CNH deve coincidir com a da mesma pessoa já cadastrada.";
+  }
+  if(Object.keys(errors).length){fail(errors);return}
+  if(view==="clients"){if(data.type==="PJ"){data.cpf="";data.rg="";data.license=""}else data.cnpj=""}
+  if(id)Object.assign(old,data);else db[view].push({...data,id:(view==="clients"?"C-":"D-")+(++sequence),deleted:false});
+  if(data.cpf){active("clients").filter(c=>c.type==="PF"&&c.cpf===data.cpf).forEach(c=>c.license=data.license);active("drivers").filter(d=>d.cpf===data.cpf).forEach(d=>d.license=data.license)}
+  render();status("Cadastro salvo. CNH da mesma pessoa mantida coerente neste protótipo.");
+ };$("#editor input, #editor select")?.focus();
+}
+document.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>{view=b.dataset.view;page=1;render()});$("#review").onchange=render;render();
+</script></body></html>
