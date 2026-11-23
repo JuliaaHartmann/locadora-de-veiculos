@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Threading.RateLimiting;
 using Locadora.Application;
+using Locadora.Domain;
 using Locadora.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
@@ -11,6 +12,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
+// Erros de índice do SQL podem incluir o CPF/CNPJ duplicado no texto da exceção.
+// A API mantém ProblemDetails/correlação, sem registrar o detalhe bruto do SaveChanges.
+builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Update", LogLevel.None);
 // CreateBuilder já aplica User Secrets somente em Development e respeita a precedência do ambiente.
 var connection = builder.Configuration.GetConnectionString("Locadora");
 if (string.IsNullOrWhiteSpace(connection)) throw new InvalidOperationException("Conexão não configurada.");
@@ -32,6 +36,15 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IRelogio, Relogio>();
 builder.Services.AddScoped<IContextoEmpresa, ContextoEmpresa>();
 builder.Services.AddScoped<IAutenticacao, AutenticacaoService>();
+builder.Services.AddScoped<IProtocoloEscrita, ProtocoloEscrita>();
+builder.Services.AddScoped<IGrupoService, GrupoService>();
+builder.Services.AddScoped<IPlanoService, PlanoService>();
+builder.Services.AddScoped<IVeiculoService, VeiculoService>();
+builder.Services.AddScoped<IClienteService, ClienteService>();
+builder.Services.AddScoped<ICondutorService, CondutorService>();
+builder.Services.AddScoped<ITaxaService, TaxaService>();
+builder.Services.AddScoped<ISeguroService, SeguroService>();
+builder.Services.AddScoped<ICombustivelService, CombustivelService>();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
 {
     options.MapInboundClaims = false;
@@ -59,7 +72,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
             var sessao = await autenticacao.ValidarSessaoAsync(sid, sub, empresa,
                 usuario.FindFirst("versaoAcesso")?.Value ?? "", logout, context.HttpContext.RequestAborted);
             if (sessao is null) { context.Fail("Sessão inválida."); return; }
-            context.HttpContext.RequestServices.GetRequiredService<IContextoEmpresa>().Definir(sessao.EmpresaId);
+            context.HttpContext.RequestServices.GetRequiredService<IContextoEmpresa>()
+                .Definir(sessao.EmpresaId, sub);
         },
         OnChallenge = async context =>
         {
@@ -98,25 +112,96 @@ if (origens.Length == 0 || origens.Any(x => !Uri.TryCreate(x, UriKind.Absolute, 
     (uri.Scheme != "http" && uri.Scheme != "https") || uri.GetLeftPart(UriPartial.Authority) != x))
     throw new InvalidOperationException("Origens CORS devem ser exatas.");
 builder.Services.AddCors(options => options.AddPolicy("origens-configuradas",
-    policy => policy.WithOrigins(origens).AllowAnyHeader().AllowAnyMethod()));
+    policy => policy.WithOrigins(origens).AllowAnyHeader().AllowAnyMethod()
+        .WithExposedHeaders("ETag")));
 builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = context =>
     ErrosHttp.Completar(context.ProblemDetails, context.HttpContext));
 builder.Services.AddControllers(options => options.ModelMetadataDetailsProviders
-    .Add(new Microsoft.AspNetCore.Mvc.ModelBinding.Metadata.SystemTextJsonValidationMetadataProvider()));
-builder.Services.AddOpenApi();
+        .Add(new Microsoft.AspNetCore.Mvc.ModelBinding.Metadata.SystemTextJsonValidationMetadataProvider()))
+    .AddJsonOptions(options => options.JsonSerializerOptions.Converters
+        .Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
+builder.Services.Configure<ApiBehaviorOptions>(options =>
+{
+    // Erros de binding/contrato seguem o mesmo ProblemDetails em português usado pelos serviços.
+    options.InvalidModelStateResponseFactory = context =>
+    {
+        var erros = context.ModelState
+            .Where(x => x.Value?.Errors.Count > 0)
+            .GroupBy(x => ErrosHttp.Campo(x.Key))
+            .ToDictionary(x => x.Key,
+                x => x.SelectMany(y => y.Value!.Errors).Select(_ => "Informe um valor válido.").ToArray());
+        var problema = new ProblemDetails
+        {
+            Status = StatusCodes.Status400BadRequest,
+            Title = "Dados inválidos",
+            Detail = "Revise os dados informados.",
+        };
+        problema.Extensions["errors"] = erros;
+        ErrosHttp.Completar(problema, context.HttpContext);
+        return new ObjectResult(problema)
+        {
+            StatusCode = StatusCodes.Status400BadRequest,
+            ContentTypes = { "application/problem+json" },
+        };
+    };
+});
+builder.Services.AddOpenApi(Locadora.Api.ContratosOpenApi.Configurar);
 
 var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     await using var escopo = app.Services.CreateAsyncScope();
     await escopo.ServiceProvider.GetRequiredService<LocadoraDbContext>().Database.MigrateAsync();
-    app.MapOpenApi();
 }
+if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
+    app.MapOpenApi();
 app.UseExceptionHandler(handler => handler.Run(async context =>
 {
     var erro = context.Features.Get<IExceptionHandlerFeature>()?.Error;
-    var sql = erro is SqlException || erro?.InnerException is SqlException;
-    await ErrosHttp.Escrever(context, sql ? 503 : 500);
+    switch (erro)
+    {
+        case ValidacaoException validacao:
+            await ErrosHttp.Escrever(context, 400, "Dados inválidos", validacao.Erros
+                .GroupBy(x => x.Campo)
+                .ToDictionary(g => g.Key, g => g.Select(x => x.Mensagem).ToArray()));
+            return;
+        case NaoEncontradoException:
+            await ErrosHttp.Escrever(context, 404);
+            return;
+        case ConflitoException conflito:
+            await ErrosHttp.Escrever(context, 409, "Conflito", conflito.Campo is null
+                ? null
+                : new Dictionary<string, string[]> { [conflito.Campo] = [conflito.Message] }, conflito.Message);
+            return;
+        case PrecondicaoObrigatoriaException precondicao:
+            await ErrosHttp.Escrever(context, 428, "Precondição obrigatória", null, precondicao.Message);
+            return;
+        case PrecondicaoException precondicao:
+            await ErrosHttp.Escrever(context, 412, "Precondição falhou", null, precondicao.Message);
+            return;
+        case DbUpdateConcurrencyException:
+            await ErrosHttp.Escrever(context, 412, "Precondição falhou",
+                null, "O cadastro foi alterado por outra operação. Recarregue e tente novamente.");
+            return;
+        case UnauthorizedAccessException:
+            await ErrosHttp.Escrever(context, 403);
+            return;
+        case SqlException sql when sql.Number is 2601 or 2627:
+            await ErrosHttp.Escrever(context, 409, "Conflito", null, "O registro entra em conflito com um cadastro existente.");
+            return;
+        case DbUpdateException atualizacao when atualizacao.InnerException is SqlException sql && sql.Number is 2601 or 2627:
+            await ErrosHttp.Escrever(context, 409, "Conflito", null, "O registro entra em conflito com um cadastro existente.");
+            return;
+        case DbUpdateException atualizacao when atualizacao.InnerException is SqlException:
+            await ErrosHttp.Escrever(context, 503);
+            return;
+        case SqlException:
+            await ErrosHttp.Escrever(context, 503);
+            return;
+        default:
+            await ErrosHttp.Escrever(context, 500);
+            return;
+    }
 }));
 app.UseStatusCodePages(async context => await ErrosHttp.Escrever(context.HttpContext, context.HttpContext.Response.StatusCode));
 app.Use(async (context, next) =>
@@ -137,20 +222,32 @@ public partial class Program { }
 
 internal static class ErrosHttp
 {
+    public static string Campo(string campo)
+    {
+        if (string.IsNullOrWhiteSpace(campo) || campo == "$") return "requisicao";
+        if (campo.StartsWith("$.", StringComparison.Ordinal)) campo = campo[2..];
+        if (campo.StartsWith("requisicao.", StringComparison.OrdinalIgnoreCase)) campo = campo[11..];
+        return string.Join('.', campo.Split('.').Select(System.Text.Json.JsonNamingPolicy.CamelCase.ConvertName));
+    }
+
     public static void Completar(ProblemDetails problema, HttpContext context)
     {
         problema.Extensions["traceId"] = context.TraceIdentifier;
         problema.Extensions["code"] = Codigo(problema.Status ?? context.Response.StatusCode);
     }
 
-    public static Task Escrever(HttpContext context, int status)
+    public static Task Escrever(HttpContext context, int status, string? titulo = null,
+        IReadOnlyDictionary<string, string[]>? erros = null, string? detalhe = null)
     {
         context.Response.Headers.CacheControl = "no-store";
-        var problema = new ProblemDetails { Status = status, Title = status switch
+        var problema = new ProblemDetails { Status = status, Title = titulo ?? status switch
         {
             401 => "Sessão inválida", 403 => "Acesso negado", 404 => "Recurso não encontrado",
-            429 => "Limite de requisições excedido", 503 => "Serviço indisponível", _ => "Erro na requisição"
-        }};
+            412 => "Precondição falhou", 428 => "Precondição obrigatória",
+            429 => "Limite de requisições excedido", 503 => "Serviço indisponível",
+            _ => "Erro na requisição"
+        }, Detail = detalhe };
+        if (erros is not null) problema.Extensions["errors"] = erros;
         Completar(problema, context);
         return Results.Problem(problema).ExecuteAsync(context);
     }
@@ -158,7 +255,8 @@ internal static class ErrosHttp
     private static string Codigo(int status) => status switch
     {
         400 => "validacao", 401 => "nao_autenticado", 403 => "acesso_negado",
-        404 => "nao_encontrado", 409 => "conflito", 429 => "limite_excedido",
+        404 => "nao_encontrado", 409 => "conflito", 412 => "precondicao_falhou",
+        428 => "precondicao_obrigatoria", 429 => "limite_excedido",
         503 => "dependencia_indisponivel", _ => "erro_requisicao"
     };
 }
