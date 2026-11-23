@@ -65,4 +65,20 @@ describe('Contratos de cadastros F2', () => {
     });
     expect((await consulta).length).toBe(101);
   });
+
+  it('mantém o filtro de disponibilidade em todas as páginas do seletor', async () => {
+    const consulta = servico.listarOpcoes<{ id: string }>('/veiculos',
+      { disponiveis: 'true', aluguelAtualId: 'aluguel' });
+    const primeira = http.expectOne(r => r.url.endsWith('/veiculos') && r.params.get('page') === '1');
+    expect(primeira.request.params.get('disponiveis')).toBe('true');
+    expect(primeira.request.params.get('aluguelAtualId')).toBe('aluguel');
+    primeira.flush({ items: [{ id: 'v1' }], page: 1, pageSize: 100, total: 2 });
+    await vi.waitFor(() => {
+      const segunda = http.expectOne(r => r.url.endsWith('/veiculos') && r.params.get('page') === '2');
+      expect(segunda.request.params.get('disponiveis')).toBe('true');
+      expect(segunda.request.params.get('aluguelAtualId')).toBe('aluguel');
+      segunda.flush({ items: [{ id: 'v2' }], page: 2, pageSize: 100, total: 2 });
+    });
+    expect(await consulta).toEqual([{ id: 'v1' }, { id: 'v2' }]);
+  });
 });

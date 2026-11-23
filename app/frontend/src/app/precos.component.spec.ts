@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { HttpErrorResponse } from '@angular/common/http';
 import { CadastrosService } from './cadastros.service';
 import { PrecosComponent } from './precos.component';
 
@@ -109,5 +110,18 @@ describe('Preços operacionais F2', () => {
     await fixture.componentInstance.carregar();
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Preço não configurado');
+  });
+
+  it('mantém a lista quando uma taxa não pode ser editada por aluguel em aberto', async () => {
+    const fixture = TestBed.createComponent(PrecosComponent);
+    await fixture.whenStable();
+    const mensagem = 'Esta taxa está vinculada a um aluguel em aberto e não pode ser editada.';
+    obter.mockRejectedValueOnce(new HttpErrorResponse({ status: 409, error: { detail: mensagem } }));
+    await fixture.componentInstance.editarTaxa('t');
+    fixture.detectChanges();
+    expect(obter).toHaveBeenCalledWith('/taxas-servicos/t?paraEdicao=true');
+    expect(fixture.componentInstance.modo()).toBe('lista');
+    expect(document.activeElement).toBe(fixture.nativeElement.querySelector('[role=alert]'));
+    expect(document.activeElement?.textContent).toContain(mensagem);
   });
 });

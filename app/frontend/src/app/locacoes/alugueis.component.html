@@ -1,0 +1,153 @@
+<a href="#conteudo-alugueis" class="sr-only focus:not-sr-only">Ir para o conteúdo de Aluguéis</a>
+<main id="conteudo-alugueis" tabindex="-1" class="max-w-6xl">
+  <header class="mb-5">
+    <p class="m-0 text-sm text-slate-600">Operação / Aluguéis
+      @switch (tela()) {
+        @case ('detalhe') { / Detalhe }
+        @case ('contratacao') { / Contratação }
+        @case ('edicao') { / Edição }
+      }
+    </p>
+    <h1 #titulo tabindex="-1" class="my-1">
+      @switch (tela()) {
+        @case ('lista') { Aluguéis }
+        @case ('detalhe') { Aluguel {{ detalhe()?.dados?.id }} }
+        @case ('contratacao') { Nova contratação }
+        @case ('edicao') { Editar aluguel {{ detalhe()?.dados?.id }} }
+      }
+    </h1>
+    <p class="m-0 text-slate-600">
+      @switch (tela()) {
+        @case ('lista') { Consulte os aluguéis em aberto e acompanhe suas estimativas. }
+        @case ('detalhe') { Consulte os dados preservados e o demonstrativo estimado. }
+        @case ('contratacao') { Selecione os dados da locação e confira a estimativa antes de confirmar. }
+        @case ('edicao') { Revise o aluguel em aberto. A saída e os preços dos itens mantidos são preservados. }
+      }
+    </p>
+  </header>
+  @if (aviso()) { <p class="rounded-lg border border-blue-200 bg-blue-50 p-3 text-blue-800" role="status">{{ aviso() }}</p> }
+
+  @if (tela() === 'lista') {
+    <section class="min-w-0 rounded-xl border border-slate-300 bg-white shadow-sm" aria-labelledby="titulo-lista">
+      <header class="flex flex-wrap items-center justify-between gap-3 p-4">
+        <h2 id="titulo-lista" class="text-lg font-semibold">Aluguéis em aberto</h2>
+        <button class="mt-0" type="button" (click)="nova()">Nova contratação</button>
+      </header>
+      <form (submit)="filtrar($event, filtroVeiculo.value, filtroDe.value, filtroAte.value)"
+        class="m-0 grid items-end gap-3 border-y border-slate-200 bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-[1.3fr_1fr_1fr_auto]">
+        <div class="grid min-w-0 gap-1"><label for="filtro-veiculo">Veículo</label>
+          <select #filtroVeiculo id="filtro-veiculo">
+            <option value="" [selected]="!filtroNaTela().veiculo">Todos os veículos</option>
+            @for (v of veiculos(); track v.id) { <option [value]="v.id" [selected]="filtroNaTela().veiculo === v.id">{{ v.placa }} — {{ v.marca }} {{ v.modelo }}</option> }
+          </select>
+        </div>
+        <div class="grid min-w-0 gap-1"><label for="filtro-de">Saída a partir de</label>
+          <input #filtroDe id="filtro-de" placeholder="dd/mm/aaaa" [value]="filtroNaTela().de" [attr.aria-invalid]="erroFiltro() ? 'true' : null"
+            [attr.aria-describedby]="erroFiltro() ? 'ajuda-filtros erro-filtro-alugueis' : 'ajuda-filtros'">
+        </div>
+        <div class="grid min-w-0 gap-1"><label for="filtro-ate">Saída até</label>
+          <input #filtroAte id="filtro-ate" placeholder="dd/mm/aaaa" [value]="filtroNaTela().ate" [attr.aria-invalid]="erroFiltro() ? 'true' : null"
+            [attr.aria-describedby]="erroFiltro() ? 'ajuda-filtros erro-filtro-alugueis' : 'ajuda-filtros'">
+        </div>
+        <button type="submit" class="mt-0 border border-slate-400 bg-white py-2 text-slate-900">Filtrar</button>
+      </form>
+      <p id="ajuda-filtros" class="m-0 p-4 text-sm text-slate-600">Período de saída no horário de São Paulo. Formato: dia/mês/ano.</p>
+      @if (erroFiltro()) {
+        <p id="erro-filtro-alugueis" tabindex="-1" role="alert" class="mx-4 rounded-lg border border-red-300 bg-red-50 p-3">{{ erroFiltro() }}</p>
+      }
+      <div [attr.aria-busy]="carregando()">
+        @if (carregando()) {
+          <p class="p-6 text-center text-slate-600" role="status">Carregando aluguéis…</p>
+        } @else if (erroConsulta()) {
+          <div id="resultado-alugueis" tabindex="-1" class="p-6 text-center">
+            <p class="m-0" role="alert">{{ erroConsulta() }}</p>
+            <button type="button" (click)="tentarNovamente()">Tentar novamente</button>
+          </div>
+        } @else if (lista(); as pagina) {
+          @if (!pagina.items.length) {
+            <p id="resultado-alugueis" tabindex="-1" class="p-6 text-center text-slate-600" role="status">Nenhum aluguel em aberto encontrado.</p>
+          } @else {
+            <div class="overflow-auto" tabindex="0" role="region" aria-label="Tabela de aluguéis em aberto">
+              <table class="w-full min-w-[58rem] border-collapse text-left">
+                <thead><tr>
+                  <th scope="col">ID</th><th scope="col">Condutor</th><th scope="col">Veículo</th><th scope="col">Plano</th>
+                  <th scope="col">Saída</th><th scope="col">Retorno previsto</th><th scope="col">Situação</th>
+                  <th scope="col">Estimativa</th><th scope="col">Ações</th>
+                </tr></thead>
+                <tbody>
+                  @for (item of pagina.items; track item.id) {
+                    <tr>
+                      <th scope="row" class="max-w-36 bg-white text-sm break-all text-slate-900">{{ item.id }}</th><td>{{ item.condutor }}</td>
+                      <td><strong class="block">{{ item.placa }}</strong><small class="text-slate-600">{{ item.marca }} {{ item.modelo }}</small></td>
+                      <td>{{ planos[item.plano] }}</td>
+                      <td class="tabular-nums">{{ dataHora(item.saida).data }}<small class="block text-slate-600">{{ dataHora(item.saida).hora }}</small></td>
+                      <td class="tabular-nums">{{ dataHora(item.retornoPrevisto).data }}<small class="block text-slate-600">{{ dataHora(item.retornoPrevisto).hora }}</small></td>
+                      <td><span class="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-sm font-semibold whitespace-nowrap text-blue-800">Em aberto</span></td>
+                      <td class="whitespace-nowrap tabular-nums"><strong class="block">{{ moeda(item.parcelasConhecidas) }}</strong><small class="text-slate-600">Parcelas conhecidas</small></td>
+                      <td><button type="button" class="mt-0 border border-slate-400 bg-white px-2 py-2 text-sm text-slate-900"
+                        [attr.aria-label]="'Consultar aluguel ' + item.id" (click)="abrir(item.id)">Consultar</button></td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            <footer class="flex flex-wrap items-center justify-between gap-2 p-4">
+              <p id="resultado-alugueis" class="m-0 text-sm text-slate-600" role="status" tabindex="-1">
+                Página {{ pagina.page }} · {{ pagina.total }} {{ pagina.total === 1 ? 'aluguel' : 'aluguéis' }}
+              </p>
+              <div class="flex gap-2">
+                <button type="button" class="mt-0 border border-slate-400 bg-white py-2 text-slate-900" (click)="paginar(-1)" [disabled]="pagina.page <= 1">Anterior</button>
+                <button type="button" class="mt-0 border border-slate-400 bg-white py-2 text-slate-900" (click)="paginar(1)" [disabled]="pagina.page * pagina.pageSize >= pagina.total">Próxima</button>
+              </div>
+            </footer>
+          }
+        }
+      </div>
+    </section>
+  } @else if (tela() === 'detalhe') {
+    @if (carregando()) { <p role="status">Carregando aluguel…</p> }
+    @else if (erroConsulta()) {
+      <p role="alert">{{ erroConsulta() }}</p>
+      <button type="button" (click)="tentarNovamente()">Tentar novamente</button>
+      <button type="button" (click)="voltarLista()">Voltar aos aluguéis</button>
+    } @else if (detalhe()?.dados; as contrato) {
+      <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <span class="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-sm font-semibold text-blue-800">Em aberto</span>
+        <div class="flex flex-wrap gap-2">
+          <button type="button" class="mt-0 border border-slate-400 bg-white py-2 text-slate-900" (click)="voltarLista()">Voltar aos aluguéis</button>
+          <button type="button" class="mt-0" (click)="editar()">Editar aluguel</button>
+        </div>
+      </div>
+      <div class="grid gap-4 min-[831px]:grid-cols-[minmax(0,1.55fr)_minmax(17rem,1fr)]">
+        <div class="grid content-start gap-4">
+          <section class="rounded-xl border border-slate-300 p-4 shadow-sm">
+            <h2 class="mb-3 text-lg font-semibold">Contratante e condutor</h2>
+            <dl class="grid gap-4 [overflow-wrap:anywhere] min-[481px]:grid-cols-2">
+              <div><dt class="text-sm font-semibold text-slate-600">Contratante</dt><dd>{{ contrato.cliente.nome }}
+                <small class="block text-slate-600">{{ clientes[contrato.cliente.tipo] }} · {{ contrato.cliente.documentoMascarado }}</small></dd></div>
+              <div><dt class="text-sm font-semibold text-slate-600">Condutor</dt><dd>{{ contrato.condutor.nome }}
+                <small class="block text-slate-600">CNH válida até {{ dataCadastro(contrato.condutor.validadeCnh) }}</small></dd></div>
+            </dl>
+          </section>
+          <section class="rounded-xl border border-slate-300 p-4 shadow-sm">
+            <h2 class="mb-3 text-lg font-semibold">Veículo e período</h2>
+            <dl class="grid gap-4 [overflow-wrap:anywhere] min-[481px]:grid-cols-2 [&_dt]:text-sm [&_dt]:font-semibold [&_dt]:text-slate-600">
+              <div><dt>Veículo</dt><dd>{{ contrato.veiculo.placa }} — {{ contrato.veiculo.marca }} {{ contrato.veiculo.modelo }}</dd></div>
+              <div><dt>Grupo e plano</dt><dd>{{ contrato.grupo.nome }} · {{ planos[contrato.estimativa.plano.modalidade] }}</dd></div>
+              <div><dt>Saída</dt><dd>{{ horario(contrato.saida) }}</dd></div>
+              <div><dt>Retorno previsto</dt><dd>{{ horario(contrato.retornoPrevisto) }}</dd></div>
+              <div><dt>Hodômetro inicial</dt><dd>{{ numero.format(contrato.hodometroInicial) }} km</dd></div>
+              <div><dt>Combustível na saída</dt><dd>Tanque cheio · {{ combustiveis[contrato.veiculo.combustivel] }} · {{ contrato.veiculo.capacidadeLitros.replace('.', ',') }} L</dd></div>
+            </dl>
+            <p class="mb-0 text-sm text-slate-600">Datas e horários de São Paulo.</p>
+          </section>
+        </div>
+        <app-demonstrativo-aluguel titulo="Demonstrativo estimado" [estimativa]="contrato.estimativa" />
+      </div>
+    }
+  } @else {
+    <app-editor-aluguel [original]="tela() === 'edicao' ? detalhe() : null"
+      (voltar)="tela() === 'edicao' ? voltarDetalhe() : voltarLista()"
+      (revisaoCarregada)="detalhe.set($event)" (gravado)="gravado($event)" />
+  }
+</main>

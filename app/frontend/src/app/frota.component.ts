@@ -561,7 +561,7 @@ export class FrotaComponent {
 
   async editarVeiculo(id: string) {
     try {
-      const resposta = await this.servico.obter<Veiculo>(`/veiculos/${id}`);
+      const resposta = await this.servico.obter<Veiculo>(`/veiculos/${id}?paraEdicao=true`);
       this.veiculoModelo.set({
         grupoId: resposta.dados.grupoId,
         placa: resposta.dados.placa,

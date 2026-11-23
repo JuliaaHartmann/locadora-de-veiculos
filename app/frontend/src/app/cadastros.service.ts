@@ -41,12 +41,12 @@ export class CadastrosService {
     return { dados: resposta.body as T, etag: this.etag(resposta) };
   }
 
-  async listarOpcoes<T>(caminho: string): Promise<T[]> {
+  async listarOpcoes<T>(caminho: string, filtros: Record<string, string | undefined> = {}): Promise<T[]> {
     const itens: T[] = [];
     let pagina = 1;
     let resposta: Pagina<T>;
     do {
-      resposta = await this.listar<T>(caminho, pagina++, 100);
+      resposta = await this.listar<T>(caminho, pagina++, 100, filtros);
       itens.push(...resposta.items);
     } while (resposta.items.length > 0 && itens.length < resposta.total);
     return itens;

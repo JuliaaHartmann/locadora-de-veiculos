@@ -404,7 +404,7 @@ export class PrecosComponent {
 
   async editarTaxa(id: string) {
     try {
-      const resposta = await this.servico.obter<Taxa>(`/taxas-servicos/${id}`);
+      const resposta = await this.servico.obter<Taxa>(`/taxas-servicos/${id}?paraEdicao=true`);
       this.taxaModelo.set({
         nome: resposta.dados.nome, preco: resposta.dados.preco, modalidade: resposta.dados.modalidade,
       });
