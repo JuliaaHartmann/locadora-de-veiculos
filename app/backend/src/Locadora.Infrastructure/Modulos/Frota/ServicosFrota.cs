@@ -170,6 +170,8 @@ public sealed class PlanoService(
             var plano = await db.Planos.SingleOrDefaultAsync(x => x.Id == id, token)
                 ?? throw new NaoEncontradoException();
             Etag.Exigir(ifMatch, plano.Versao);
+            if (await db.ContratosSnapshot.AnyAsync(x => x.PlanoId == id, token))
+                throw new ConflitoException("Este plano já foi usado em um aluguel e não pode ser excluído.");
             plano.ExcluidoEmUtc = relogio.Agora;
             escrita.Auditar("plano.excluido", nameof(Plano), plano.Id);
             return true;
@@ -188,21 +190,27 @@ public sealed class VeiculoService(
     IProtocoloEscrita escrita,
     IRelogio relogio) : IVeiculoService
 {
-    public async Task<Pagina<VeiculoResumo>> ListarAsync(Guid? grupoId, int? page, int? pageSize, CancellationToken ct)
+    public async Task<Pagina<VeiculoResumo>> ListarAsync(Guid? grupoId, int? page, int? pageSize, CancellationToken ct,
+        bool disponiveis = false, Guid? aluguelAtualId = null)
     {
         var (pagina, tamanho) = Paginacao.Normalizar(page, pageSize);
         var consulta = db.Veiculos.AsNoTracking().Include(x => x.Grupo).AsQueryable();
         if (grupoId is Guid filtro) consulta = consulta.Where(x => x.GrupoId == filtro);
+        if (disponiveis)
+            consulta = consulta.Where(veiculo => !db.AlugueisAbertos().Any(aluguel =>
+                aluguel.VeiculoId == veiculo.Id && (aluguelAtualId == null || aluguel.Id != aluguelAtualId)));
         var ordenada = consulta.OrderBy(x => x.Placa).ThenBy(x => x.Id);
         var total = await ordenada.CountAsync(ct);
         var veiculos = await ordenada.Skip((pagina - 1) * tamanho).Take(tamanho).ToListAsync(ct);
         return new Pagina<VeiculoResumo>(veiculos.Select(Mapear).ToList(), pagina, tamanho, total);
     }
 
-    public async Task<RespostaComVersao<VeiculoResumo>?> ObterAsync(Guid id, CancellationToken ct)
+    public async Task<RespostaComVersao<VeiculoResumo>?> ObterAsync(Guid id, CancellationToken ct, bool paraEdicao = false)
     {
         var veiculo = await db.Veiculos.AsNoTracking().Include(x => x.Grupo)
             .SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (paraEdicao && veiculo is not null && await db.AlugueisAbertos().AnyAsync(x => x.VeiculoId == id, ct))
+            throw new ConflitoException("Este veículo está vinculado a um aluguel em aberto e não pode ser editado.");
         return veiculo is null ? null : new(Mapear(veiculo), Etag.De(veiculo.Versao));
     }
 
@@ -242,6 +250,8 @@ public sealed class VeiculoService(
                 var atual = await db.Veiculos.SingleOrDefaultAsync(x => x.Id == id, token)
                     ?? throw new NaoEncontradoException();
                 Etag.Exigir(ifMatch, atual.Versao);
+                if (await db.AlugueisAbertos().AnyAsync(x => x.VeiculoId == id, token))
+                    throw new ConflitoException("Este veículo está vinculado a um aluguel em aberto e não pode ser editado.");
                 if (!await db.Grupos.AnyAsync(x => x.Id == comando.GrupoId, token))
                     throw new ValidacaoException("grupoId", "Selecione um grupo ativo.");
                 var capacidade = Decimais.Capacidade(comando.CapacidadeLitros, "capacidadeLitros");
@@ -268,6 +278,8 @@ public sealed class VeiculoService(
             var veiculo = await db.Veiculos.SingleOrDefaultAsync(x => x.Id == id, token)
                 ?? throw new NaoEncontradoException();
             Etag.Exigir(ifMatch, veiculo.Versao);
+            if (await db.AlugueisAbertos().AnyAsync(x => x.VeiculoId == id, token))
+                throw new ConflitoException("Este veículo está vinculado a um aluguel em aberto e não pode ser excluído.");
             veiculo.ExcluidoEmUtc = relogio.Agora;
             escrita.Auditar("veiculo.excluido", nameof(Veiculo), veiculo.Id);
             return true;

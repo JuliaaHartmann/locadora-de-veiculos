@@ -81,7 +81,7 @@ public interface IClienteService
 
 public interface ICondutorService
 {
-    Task<Pagina<CondutorResumo>> ListarAsync(int? page, int? pageSize, CancellationToken ct);
+    Task<Pagina<CondutorResumo>> ListarAsync(int? page, int? pageSize, CancellationToken ct, Guid? clienteId = null);
     Task<RespostaComVersao<CondutorResumo>?> ObterAsync(Guid id, CancellationToken ct);
     Task<RespostaComVersao<CondutorResumo>> CriarAsync(ComandoCondutor comando, CancellationToken ct);
     Task<RespostaComVersao<CondutorResumo>> EditarAsync(Guid id, ComandoCondutor comando, string? ifMatch, CancellationToken ct);

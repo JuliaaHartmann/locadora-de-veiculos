@@ -112,13 +112,13 @@ public sealed class VeiculosController(IVeiculoService servico) : ControllerBase
     [HttpGet]
     [ProducesResponseType<Pagina<VeiculoResumo>>(200)]
     public async Task<IActionResult> Listar([FromQuery] Guid? grupoId, [FromQuery] int? page,
-        [FromQuery] int? pageSize, CancellationToken ct) =>
-        Ok(await servico.ListarAsync(grupoId, page, pageSize, ct));
+        [FromQuery] int? pageSize, [FromQuery] bool disponiveis, [FromQuery] Guid? aluguelAtualId, CancellationToken ct) =>
+        Ok(await servico.ListarAsync(grupoId, page, pageSize, ct, disponiveis, aluguelAtualId));
 
     [HttpGet("{id:guid}")]
     [ProducesResponseType<VeiculoResumo>(200)]
-    public async Task<IActionResult> Obter(Guid id, CancellationToken ct) =>
-        RespostasHttp.ComVersao(Response, await servico.ObterAsync(id, ct));
+    public async Task<IActionResult> Obter(Guid id, [FromQuery] bool paraEdicao, CancellationToken ct) =>
+        RespostasHttp.ComVersao(Response, await servico.ObterAsync(id, ct, paraEdicao));
 
     [HttpPost]
     [ProducesResponseType<VeiculoResumo>(201)]

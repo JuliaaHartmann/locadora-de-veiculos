@@ -20,9 +20,11 @@ public sealed class TaxaService(
         return new Pagina<TaxaResumo>(itens, pagina, tamanho, total);
     }
 
-    public async Task<RespostaComVersao<TaxaResumo>?> ObterAsync(Guid id, CancellationToken ct)
+    public async Task<RespostaComVersao<TaxaResumo>?> ObterAsync(Guid id, CancellationToken ct, bool paraEdicao = false)
     {
         var taxa = await db.TaxasServico.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (paraEdicao && taxa is not null && await db.TaxaEmAluguelAbertoAsync(id, ct))
+            throw new ConflitoException("Esta taxa está vinculada a um aluguel em aberto e não pode ser editada.");
         return taxa is null ? null : new(Mapear(taxa), Etag.De(taxa.Versao));
     }
 
@@ -47,6 +49,8 @@ public sealed class TaxaService(
             var atual = await db.TaxasServico.SingleOrDefaultAsync(x => x.Id == id, token)
                 ?? throw new NaoEncontradoException();
             Etag.Exigir(ifMatch, atual.Versao);
+            if (await db.TaxaEmAluguelAbertoAsync(id, token))
+                throw new ConflitoException("Esta taxa está vinculada a um aluguel em aberto e não pode ser editada.");
             var preco = Decimais.Monetario(comando.Preco, "preco");
             atual.Atualizar(comando.Nome, preco, comando.Modalidade, relogio.Agora);
             escrita.Auditar("taxa.editada", nameof(TaxaServico), atual.Id, "nome", "preco", "modalidade");
@@ -62,6 +66,8 @@ public sealed class TaxaService(
             var taxa = await db.TaxasServico.SingleOrDefaultAsync(x => x.Id == id, token)
                 ?? throw new NaoEncontradoException();
             Etag.Exigir(ifMatch, taxa.Versao);
+            if (await db.TaxaEmAluguelAbertoAsync(id, token))
+                throw new ConflitoException("Esta taxa está vinculada a um aluguel em aberto e não pode ser excluída.");
             taxa.ExcluidoEmUtc = relogio.Agora;
             escrita.Auditar("taxa.excluida", nameof(TaxaServico), taxa.Id);
             return true;

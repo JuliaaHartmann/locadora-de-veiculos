@@ -76,6 +76,9 @@ public sealed class ClienteService(
                     var condutores = await db.Condutores.Where(x => x.Cpf == atual.Cpf).ToListAsync(token);
                     foreach (var condutor in condutores)
                     {
+                        if (condutor.Cnh != atual.Cnh &&
+                            await db.AlugueisAbertos().AnyAsync(x => x.CondutorId == condutor.Id, token))
+                            throw new ConflitoException("A CNH não pode ser alterada enquanto o condutor correspondente estiver vinculado a um aluguel em aberto.", "cnh");
                         condutor.SincronizarCnh(atual.Cnh, relogio.Agora);
                         db.Entry(condutor).Property(x => x.Cnh).IsModified = true;
                         escrita.Auditar("condutor.cnh-sincronizada", nameof(Condutor), condutor.Id, "cnh");
@@ -103,6 +106,8 @@ public sealed class ClienteService(
             var cliente = await db.Clientes.SingleOrDefaultAsync(x => x.Id == id, token)
                 ?? throw new NaoEncontradoException();
             Etag.Exigir(ifMatch, cliente.Versao);
+            if (await db.AlugueisAbertos().AnyAsync(x => x.ClienteId == id, token))
+                throw new ConflitoException("Este cliente está vinculado a um aluguel em aberto e não pode ser excluído.");
             cliente.ExcluidoEmUtc = relogio.Agora;
             escrita.Auditar("cliente.excluido", nameof(Cliente), cliente.Id);
             return true;
@@ -201,10 +206,13 @@ public sealed class CondutorService(
     IProtocoloEscrita escrita,
     IRelogio relogio) : ICondutorService
 {
-    public async Task<Pagina<CondutorResumo>> ListarAsync(int? page, int? pageSize, CancellationToken ct)
+    public async Task<Pagina<CondutorResumo>> ListarAsync(int? page, int? pageSize, CancellationToken ct, Guid? clienteId = null)
     {
         var (pagina, tamanho) = Paginacao.Normalizar(page, pageSize);
-        var consulta = db.Condutores.AsNoTracking().OrderBy(x => x.Nome).ThenBy(x => x.Id);
+        var ativos = db.Condutores.AsNoTracking();
+        if (clienteId is Guid filtro)
+            ativos = ativos.Where(x => x.ClienteId == filtro && db.Clientes.Any(c => c.Id == filtro));
+        var consulta = ativos.OrderBy(x => x.Nome).ThenBy(x => x.Id);
         var total = await consulta.CountAsync(ct);
         var condutores = await consulta.Skip((pagina - 1) * tamanho).Take(tamanho).ToListAsync(ct);
         var nomes = await NomesClientesAsync(condutores.Select(x => x.ClienteId), ct);
@@ -258,6 +266,14 @@ public sealed class CondutorService(
                 var atual = await db.Condutores.SingleOrDefaultAsync(x => x.Id == id, token)
                     ?? throw new NaoEncontradoException();
                 Etag.Exigir(ifMatch, atual.Versao);
+                var camposProtegidos = new List<string>();
+                if (atual.ClienteId != comando.ClienteId) camposProtegidos.Add("clienteId");
+                if (atual.Cpf != DocumentoBrasileiro.Normalizar(comando.Cpf)) camposProtegidos.Add("cpf");
+                if (atual.Cnh != comando.Cnh?.Trim()) camposProtegidos.Add("cnh");
+                if (atual.ValidadeCnh != comando.ValidadeCnh) camposProtegidos.Add("validadeCnh");
+                if (camposProtegidos.Count > 0 && await db.AlugueisAbertos().AnyAsync(x => x.CondutorId == id, token))
+                    throw new ConflitoException("CPF, CNH, validade e vínculo do condutor não podem ser alterados enquanto houver aluguel em aberto.",
+                        camposProtegidos.Count == 1 ? camposProtegidos[0] : null);
                 if (atual.ClienteId != comando.ClienteId &&
                     !await db.Clientes.AnyAsync(x => x.Id == comando.ClienteId, token))
                     throw new ValidacaoException("clienteId", "Selecione um cliente ativo.");
@@ -292,6 +308,8 @@ public sealed class CondutorService(
             var condutor = await db.Condutores.SingleOrDefaultAsync(x => x.Id == id, token)
                 ?? throw new NaoEncontradoException();
             Etag.Exigir(ifMatch, condutor.Versao);
+            if (await db.AlugueisAbertos().AnyAsync(x => x.CondutorId == id, token))
+                throw new ConflitoException("Este condutor está vinculado a um aluguel em aberto e não pode ser excluído.");
             condutor.ExcluidoEmUtc = relogio.Agora;
             escrita.Auditar("condutor.excluido", nameof(Condutor), condutor.Id);
             return true;

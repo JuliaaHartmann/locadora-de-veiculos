@@ -45,6 +45,8 @@ builder.Services.AddScoped<ICondutorService, CondutorService>();
 builder.Services.AddScoped<ITaxaService, TaxaService>();
 builder.Services.AddScoped<ISeguroService, SeguroService>();
 builder.Services.AddScoped<ICombustivelService, CombustivelService>();
+builder.Services.AddScoped<IRepositorioAlugueis, RepositorioAlugueis>();
+builder.Services.AddScoped<AluguelService>();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
 {
     options.MapInboundClaims = false;

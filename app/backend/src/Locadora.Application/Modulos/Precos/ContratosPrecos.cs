@@ -30,7 +30,7 @@ public sealed record ComandoCombustivel(string? Preco);
 public interface ITaxaService
 {
     Task<Pagina<TaxaResumo>> ListarAsync(int? page, int? pageSize, CancellationToken ct);
-    Task<RespostaComVersao<TaxaResumo>?> ObterAsync(Guid id, CancellationToken ct);
+    Task<RespostaComVersao<TaxaResumo>?> ObterAsync(Guid id, CancellationToken ct, bool paraEdicao = false);
     Task<RespostaComVersao<TaxaResumo>> CriarAsync(ComandoTaxa comando, CancellationToken ct);
     Task<RespostaComVersao<TaxaResumo>> EditarAsync(Guid id, ComandoTaxa comando, string? ifMatch, CancellationToken ct);
     Task ExcluirAsync(Guid id, string? ifMatch, CancellationToken ct);

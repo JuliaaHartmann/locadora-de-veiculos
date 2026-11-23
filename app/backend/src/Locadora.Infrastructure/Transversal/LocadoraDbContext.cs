@@ -6,7 +6,7 @@ using Locadora.Application;
 
 namespace Locadora.Infrastructure;
 
-public sealed class LocadoraDbContext(DbContextOptions<LocadoraDbContext> options, IContextoEmpresa contexto)
+public sealed partial class LocadoraDbContext(DbContextOptions<LocadoraDbContext> options, IContextoEmpresa contexto)
     : IdentityDbContext<UsuarioIdentity, IdentityRole<Guid>, Guid>(options)
 {
     public DbSet<Empresa> Empresas => Set<Empresa>();
@@ -31,6 +31,7 @@ public sealed class LocadoraDbContext(DbContextOptions<LocadoraDbContext> option
         MapearFrota(builder);
         MapearPessoas(builder);
         MapearPrecos(builder);
+        MapearLocacoes(builder);
         MapearAuditoria(builder);
     }
 
