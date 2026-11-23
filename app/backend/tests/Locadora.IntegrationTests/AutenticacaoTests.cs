@@ -484,7 +484,8 @@ public sealed class AutenticacaoTests
     }
 }
 
-internal sealed class SqlServerWebApplicationFactory(bool indisponivel = false, bool prepararSchema = true, bool falharAuditoria = false)
+internal sealed class SqlServerWebApplicationFactory(bool indisponivel = false, bool prepararSchema = true,
+    bool falharAuditoria = false, string? falharAuditoriaEvento = null, string[]? origens = null)
     : WebApplicationFactory<Program>
 {
     private readonly string databaseName = $"LocadoraTeste_{Guid.NewGuid():N}";
@@ -496,6 +497,10 @@ internal sealed class SqlServerWebApplicationFactory(bool indisponivel = false, 
         builder.UseEnvironment("Testing");
         builder.ConfigureServices(services =>
         {
+            if (origens is not null)
+                services.PostConfigure<Microsoft.AspNetCore.Cors.Infrastructure.CorsOptions>(options =>
+                    options.AddPolicy("origens-configuradas", politica => politica
+                        .WithOrigins(origens).AllowAnyHeader().AllowAnyMethod().WithExposedHeaders("ETag")));
             var original = Environment.GetEnvironmentVariable("ConnectionStrings__Locadora")
                 ?? throw new InvalidOperationException("Execute scripts/Testar-Integracao.ps1 ou forneça SQL exclusivo de testes.");
             var sql = new SqlConnectionStringBuilder(original) { InitialCatalog = databaseName };
@@ -505,6 +510,8 @@ internal sealed class SqlServerWebApplicationFactory(bool indisponivel = false, 
             {
                 options.UseSqlServer(sql.ConnectionString);
                 if (falharAuditoria) options.AddInterceptors(new FalhaAuditoriaInterceptor());
+                else if (falharAuditoriaEvento is not null)
+                    options.AddInterceptors(new FalhaAuditoriaInterceptor(falharAuditoriaEvento));
             });
             services.AddControllers().AddApplicationPart(typeof(RecursoTenantTesteController).Assembly);
         });
@@ -536,12 +543,13 @@ internal sealed class SqlServerWebApplicationFactory(bool indisponivel = false, 
     }
 }
 
-internal sealed class FalhaAuditoriaInterceptor : SaveChangesInterceptor
+internal sealed class FalhaAuditoriaInterceptor(string? evento = null) : SaveChangesInterceptor
 {
     public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
         DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
     {
-        if (eventData.Context!.ChangeTracker.Entries<Auditoria>().Any(x => x.State == EntityState.Added))
+        if (eventData.Context!.ChangeTracker.Entries<Auditoria>()
+            .Any(x => x.State == EntityState.Added && (evento is null || x.Entity.Evento == evento)))
             throw new InvalidOperationException("Falha sintética antes da auditoria.");
         return base.SavingChangesAsync(eventData, result, cancellationToken);
     }
