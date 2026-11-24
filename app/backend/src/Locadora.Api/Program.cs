@@ -181,6 +181,10 @@ app.UseExceptionHandler(handler => handler.Run(async context =>
         case PrecondicaoException precondicao:
             await ErrosHttp.Escrever(context, 412, "Precondição falhou", null, precondicao.Message);
             return;
+        case FalhaGravacaoDevolucaoException falhaDevolucao:
+            await ErrosHttp.Escrever(context, 503, "Devolução não gravada", detalhe: falhaDevolucao.Message,
+                codigo: "devolucao_nao_gravada");
+            return;
         case DbUpdateConcurrencyException:
             await ErrosHttp.Escrever(context, 412, "Precondição falhou",
                 null, "O cadastro foi alterado por outra operação. Recarregue e tente novamente.");
@@ -239,7 +243,7 @@ internal static class ErrosHttp
     }
 
     public static Task Escrever(HttpContext context, int status, string? titulo = null,
-        IReadOnlyDictionary<string, string[]>? erros = null, string? detalhe = null)
+        IReadOnlyDictionary<string, string[]>? erros = null, string? detalhe = null, string? codigo = null)
     {
         context.Response.Headers.CacheControl = "no-store";
         var problema = new ProblemDetails { Status = status, Title = titulo ?? status switch
@@ -251,6 +255,7 @@ internal static class ErrosHttp
         }, Detail = detalhe };
         if (erros is not null) problema.Extensions["errors"] = erros;
         Completar(problema, context);
+        if (codigo is not null) problema.Extensions["code"] = codigo;
         return Results.Problem(problema).ExecuteAsync(context);
     }
 

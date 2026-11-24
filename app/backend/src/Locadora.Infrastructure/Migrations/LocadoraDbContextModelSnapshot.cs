@@ -85,6 +85,8 @@ namespace Locadora.Infrastructure.Migrations
                     b.ToTable("Alugueis", null, t =>
                         {
                             t.HasCheckConstraint("CK_Alugueis_AbertoNaoOcultado", "[Estado] <> 0 OR [ExcluidoEmUtc] IS NULL");
+
+                            t.HasCheckConstraint("CK_Alugueis_Estado", "[Estado] IN (0, 1)");
                         });
                 });
 
@@ -450,6 +452,145 @@ namespace Locadora.Infrastructure.Migrations
                     b.ToTable("Empresas", (string)null);
                 });
 
+            modelBuilder.Entity("Locadora.Domain.FechamentoAluguel", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AluguelId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("AtualizadoEm")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<decimal>("CapacidadeLitros")
+                        .HasPrecision(12, 3)
+                        .HasColumnType("decimal(12,3)");
+
+                    b.Property<decimal>("Caucao")
+                        .HasPrecision(19, 2)
+                        .HasColumnType("decimal(19,2)");
+
+                    b.Property<int>("Combustivel")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("CombustivelBruto")
+                        .HasPrecision(26, 9)
+                        .HasColumnType("decimal(26,9)");
+
+                    b.Property<DateTimeOffset>("CriadoEm")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("Diarias")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("DiariasBruto")
+                        .HasPrecision(26, 9)
+                        .HasColumnType("decimal(26,9)");
+
+                    b.Property<Guid>("EmpresaId")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ExcluidoEmUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<long?>("FranquiaTotalKm")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("HodometroFinal")
+                        .HasColumnType("int");
+
+                    b.Property<int>("HodometroInicial")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("InicioVigenciaCombustivelUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<long>("KmCobrados")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("KmRodados")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("LitrosARepor")
+                        .HasPrecision(12, 3)
+                        .HasColumnType("decimal(12,3)");
+
+                    b.Property<decimal>("LitrosRestantes")
+                        .HasPrecision(12, 3)
+                        .HasColumnType("decimal(12,3)");
+
+                    b.Property<decimal?>("MultaBruto")
+                        .HasPrecision(26, 9)
+                        .HasColumnType("decimal(26,9)");
+
+                    b.Property<long>("OrdemCombustivel")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("PrecoCombustivelId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("PrecoPorLitro")
+                        .HasPrecision(19, 6)
+                        .HasColumnType("decimal(19,6)");
+
+                    b.Property<decimal>("QuilometragemBruto")
+                        .HasPrecision(26, 9)
+                        .HasColumnType("decimal(26,9)");
+
+                    b.Property<DateTimeOffset>("RetornoRealUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("RevisaoId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Total")
+                        .HasPrecision(19, 2)
+                        .HasColumnType("decimal(19,2)");
+
+                    b.Property<decimal>("ValorCombustivel")
+                        .HasPrecision(19, 2)
+                        .HasColumnType("decimal(19,2)");
+
+                    b.Property<decimal?>("ValorMulta")
+                        .HasPrecision(19, 2)
+                        .HasColumnType("decimal(19,2)");
+
+                    b.Property<decimal>("ValorPlano")
+                        .HasPrecision(19, 2)
+                        .HasColumnType("decimal(19,2)");
+
+                    b.Property<byte[]>("Versao")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("VersaoRegra")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(32)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmpresaId", "AluguelId")
+                        .IsUnique();
+
+                    b.HasIndex("EmpresaId", "PrecoCombustivelId");
+
+                    b.HasIndex("EmpresaId", "AluguelId", "RevisaoId");
+
+                    b.ToTable("FechamentosAlugueis", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_FechamentosAlugueis_Medicoes", "[Diarias] > 0 AND [HodometroInicial] >= 0 AND [HodometroFinal] >= [HodometroInicial] AND [KmRodados] = [HodometroFinal] - [HodometroInicial] AND [KmCobrados] BETWEEN 0 AND [KmRodados] AND [FranquiaTotalKm] >= 0 AND [CapacidadeLitros] > 0 AND [LitrosRestantes] BETWEEN 0 AND [CapacidadeLitros] AND [LitrosARepor] = [CapacidadeLitros] - [LitrosRestantes] AND [InicioVigenciaCombustivelUtc] <= [RetornoRealUtc]");
+
+                            t.HasCheckConstraint("CK_FechamentosAlugueis_Valores", "[DiariasBruto] >= 0 AND [QuilometragemBruto] >= 0 AND [ValorPlano] >= 0 AND [PrecoPorLitro] >= 0 AND [CombustivelBruto] >= 0 AND [ValorCombustivel] >= 0 AND (([MultaBruto] IS NULL AND [ValorMulta] IS NULL) OR ([MultaBruto] IS NOT NULL AND [ValorMulta] IS NOT NULL AND [MultaBruto] >= 0 AND [ValorMulta] >= 0)) AND [Total] >= 0 AND [Caucao] = 1000 AND [ExcluidoEmUtc] IS NULL");
+                        });
+                });
+
             modelBuilder.Entity("Locadora.Domain.Grupo", b =>
                 {
                     b.Property<Guid>("Id")
@@ -562,6 +703,93 @@ namespace Locadora.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Locadora.Domain.ItemFechamentoAluguel", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("AtualizadoEm")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<decimal>("Bruto")
+                        .HasPrecision(26, 9)
+                        .HasColumnType("decimal(26,9)");
+
+                    b.Property<int>("Categoria")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("CriadoEm")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("EmpresaId")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ExcluidoEmUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("FinalId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Modalidade")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Nome")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<decimal>("Preco")
+                        .HasPrecision(19, 6)
+                        .HasColumnType("decimal(19,6)");
+
+                    b.Property<int>("Quantidade")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("SeguroId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("TaxaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Valor")
+                        .HasPrecision(19, 2)
+                        .HasColumnType("decimal(19,2)");
+
+                    b.Property<byte[]>("Versao")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<byte[]>("VersaoTaxaAdicional")
+                        .HasMaxLength(8)
+                        .HasColumnType("binary(8)")
+                        .IsFixedLength();
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("EmpresaId", "Id");
+
+                    b.HasIndex("EmpresaId", "SeguroId");
+
+                    b.HasIndex("EmpresaId", "TaxaId");
+
+                    b.HasIndex("EmpresaId", "FinalId", "Categoria")
+                        .IsUnique()
+                        .HasFilter("[SeguroId] IS NOT NULL");
+
+                    b.HasIndex("EmpresaId", "FinalId", "TaxaId")
+                        .IsUnique()
+                        .HasFilter("[TaxaId] IS NOT NULL");
+
+                    b.ToTable("ItensFechamentoAluguel", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ItensFechamentoAluguel_Origem", "(([Categoria] = 0 AND [TaxaId] IS NOT NULL AND [SeguroId] IS NULL AND [Modalidade] IN (0, 1)) OR ([Categoria] IN (1, 2) AND [TaxaId] IS NULL AND [SeguroId] IS NOT NULL AND [VersaoTaxaAdicional] IS NULL AND [Modalidade] = 1)) AND [Quantidade] > 0 AND ([Modalidade] <> 0 OR [Quantidade] = 1) AND [Preco] >= 0 AND [Bruto] >= 0 AND [Valor] >= 0 AND [ExcluidoEmUtc] IS NULL");
+                        });
+                });
+
             modelBuilder.Entity("Locadora.Domain.Plano", b =>
                 {
                     b.Property<Guid>("Id")
@@ -652,8 +880,6 @@ namespace Locadora.Infrastructure.Migrations
                         .HasColumnType("rowversion");
 
                     b.HasKey("Id");
-
-                    b.HasAlternateKey("EmpresaId", "Id");
 
                     b.HasIndex("EmpresaId", "Tipo", "InicioVigenciaUtc", "Ordem", "Id");
 
@@ -753,6 +979,9 @@ namespace Locadora.Infrastructure.Migrations
                     b.Property<DateTimeOffset?>("ExcluidoEmUtc")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<Guid?>("FinalId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<byte[]>("HashComando")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -789,10 +1018,15 @@ namespace Locadora.Infrastructure.Migrations
 
                     b.HasIndex("EmpresaId", "RevisaoId");
 
+                    b.HasIndex("EmpresaId", "FinalId", "RevisaoId");
+
                     b.HasIndex("EmpresaId", "UsuarioId", "Operacao", "Chave")
                         .IsUnique();
 
-                    b.ToTable("IdempotenciaAlugueis", (string)null);
+                    b.ToTable("IdempotenciaAlugueis", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_IdempotenciaAlugueis_Resultado", "([Operacao] = 'criar' AND [FinalId] IS NULL) OR ([Operacao] = 'devolver' AND [FinalId] IS NOT NULL)");
+                        });
                 });
 
             modelBuilder.Entity("Locadora.Domain.SeguroConfiguracao", b =>
@@ -1389,6 +1623,36 @@ namespace Locadora.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Locadora.Domain.FechamentoAluguel", b =>
+                {
+                    b.HasOne("Locadora.Domain.Empresa", null)
+                        .WithMany()
+                        .HasForeignKey("EmpresaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Locadora.Domain.Aluguel", null)
+                        .WithMany()
+                        .HasForeignKey("EmpresaId", "AluguelId")
+                        .HasPrincipalKey("EmpresaId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Locadora.Domain.PrecoCombustivel", null)
+                        .WithMany()
+                        .HasForeignKey("EmpresaId", "PrecoCombustivelId")
+                        .HasPrincipalKey("EmpresaId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Locadora.Domain.ContratoSnapshot", null)
+                        .WithMany()
+                        .HasForeignKey("EmpresaId", "AluguelId", "RevisaoId")
+                        .HasPrincipalKey("EmpresaId", "AluguelId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Locadora.Domain.Grupo", b =>
                 {
                     b.HasOne("Locadora.Domain.Empresa", null)
@@ -1409,6 +1673,34 @@ namespace Locadora.Infrastructure.Migrations
                     b.HasOne("Locadora.Domain.ContratoSnapshot", null)
                         .WithMany("Itens")
                         .HasForeignKey("EmpresaId", "RevisaoId")
+                        .HasPrincipalKey("EmpresaId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Locadora.Domain.SeguroConfiguracao", null)
+                        .WithMany()
+                        .HasForeignKey("EmpresaId", "SeguroId")
+                        .HasPrincipalKey("EmpresaId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Locadora.Domain.TaxaServico", null)
+                        .WithMany()
+                        .HasForeignKey("EmpresaId", "TaxaId")
+                        .HasPrincipalKey("EmpresaId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Locadora.Domain.ItemFechamentoAluguel", b =>
+                {
+                    b.HasOne("Locadora.Domain.Empresa", null)
+                        .WithMany()
+                        .HasForeignKey("EmpresaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Locadora.Domain.FechamentoAluguel", null)
+                        .WithMany("Adicionais")
+                        .HasForeignKey("EmpresaId", "FinalId")
                         .HasPrincipalKey("EmpresaId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
@@ -1499,6 +1791,12 @@ namespace Locadora.Infrastructure.Migrations
                         .HasPrincipalKey("EmpresaId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("Locadora.Domain.FechamentoAluguel", null)
+                        .WithMany()
+                        .HasForeignKey("EmpresaId", "FinalId", "RevisaoId")
+                        .HasPrincipalKey("EmpresaId", "Id", "RevisaoId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Locadora.Domain.SeguroConfiguracao", b =>
@@ -1656,6 +1954,11 @@ namespace Locadora.Infrastructure.Migrations
             modelBuilder.Entity("Locadora.Domain.Empresa", b =>
                 {
                     b.Navigation("Sessoes");
+                });
+
+            modelBuilder.Entity("Locadora.Domain.FechamentoAluguel", b =>
+                {
+                    b.Navigation("Adicionais");
                 });
 
             modelBuilder.Entity("Locadora.Domain.Grupo", b =>

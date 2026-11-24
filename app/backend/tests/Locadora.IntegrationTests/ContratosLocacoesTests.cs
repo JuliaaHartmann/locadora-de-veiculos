@@ -85,7 +85,7 @@ public sealed class ContratosLocacoesTests
         var comando = ComandoAtual(dados);
         var doc = await http.GetFromJsonAsync<JsonElement>("/openapi/v1.json");
         var rotas = doc.GetProperty("paths");
-        Assert.HasCount(3, rotas.EnumerateObject().Where(x => x.Name.StartsWith(Rota, StringComparison.Ordinal)).ToArray());
+        Assert.HasCount(5, rotas.EnumerateObject().Where(x => x.Name.StartsWith(Rota, StringComparison.Ordinal)).ToArray());
         var post = rotas.GetProperty(Rota).GetProperty("post");
         Assert.IsTrue(post.GetProperty("parameters").EnumerateArray().Any(x => x.GetProperty("name").GetString() == Chave
             && x.GetProperty("required").GetBoolean()));
