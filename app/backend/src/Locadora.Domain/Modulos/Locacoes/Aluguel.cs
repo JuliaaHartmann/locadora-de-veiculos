@@ -3,6 +3,7 @@ namespace Locadora.Domain;
 public enum EstadoAluguel
 {
     EmAberto = 0,
+    Concluido = 1,
 }
 
 public sealed class Aluguel : EntidadeEmpresa
@@ -82,5 +83,6 @@ public sealed class RegistroIdempotenciaAluguel : EntidadeEmpresa
     public string Chave { get; set; } = "";
     public byte[] HashComando { get; set; } = [];
     public Guid RevisaoId { get; set; }
+    public Guid? FinalId { get; set; }
     public byte[] VersaoOriginal { get; set; } = [];
 }

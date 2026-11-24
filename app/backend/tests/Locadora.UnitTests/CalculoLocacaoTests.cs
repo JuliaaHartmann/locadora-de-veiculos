@@ -57,6 +57,46 @@ public sealed class CalculoLocacaoTests
         Assert.IsFalse(estimativa.Plano.QuilometragemPendente);
     }
 
+    [TestMethod]
+    [DataRow(0, 1)]
+    [DataRow(1440, 1)]
+    [DataRow(1441, 2)]
+    public void Parcelas_efetivas_usam_periodos_de_24_h_e_aplicam_adicionais_em_cada_diaria(int minutos, int diarias)
+    {
+        var saida = new DateTimeOffset(2018, 11, 3, 10, 0, 0, TimeSpan.FromHours(-3));
+        var parcelas = CalculoLocacao.CalcularParcelasEfetivas(saida,
+            saida.AddMinutes(minutos).ToOffset(TimeSpan.FromHours(-2)), 21_430, 21_680,
+            Parametros(ModalidadePlano.Livre),
+            [
+                new(Guid.NewGuid(), "Preparação", CategoriaAdicional.Taxa, ModalidadeTaxa.Fixa, 30m),
+                new(Guid.NewGuid(), "Suporte", CategoriaAdicional.Taxa, ModalidadeTaxa.Diaria, 10m),
+                new(Guid.NewGuid(), "Seguro do cliente", CategoriaAdicional.SeguroCliente, ModalidadeTaxa.Diaria, 5m),
+                new(Guid.NewGuid(), "Seguro de terceiros", CategoriaAdicional.SeguroTerceiros, ModalidadeTaxa.Diaria, 7m),
+            ]);
+        Assert.AreEqual(diarias, parcelas.Diarias);
+        Assert.AreEqual(250, parcelas.KmRodados);
+        CollectionAssert.AreEqual(new[] { 30m, 10m * diarias, 5m * diarias, 7m * diarias },
+            parcelas.Adicionais.Select(x => x.Valor).ToArray());
+    }
+
+    [TestMethod]
+    [DataRow(ModalidadePlano.Diario, 150, 500)]
+    [DataRow(ModalidadePlano.Controlado, 250, 300)]
+    [DataRow(ModalidadePlano.Controlado, 200, 200)]
+    [DataRow(ModalidadePlano.Controlado, 150, 200)]
+    [DataRow(ModalidadePlano.Livre, 250, 200)]
+    public void Parcelas_efetivas_preservam_km_rodados_e_aplicam_a_franquia_do_periodo(ModalidadePlano modalidade,
+        int km, int esperado)
+    {
+        var saida = DateTimeOffset.UnixEpoch;
+        var parcelas = CalculoLocacao.CalcularParcelasEfetivas(saida, saida.AddDays(2), 100, 100 + km,
+            Parametros(modalidade), []);
+        Assert.AreEqual(km, parcelas.KmRodados);
+        Assert.AreEqual((decimal)esperado, parcelas.Plano.Valor);
+        Assert.AreEqual(modalidade == ModalidadePlano.Controlado ? 200L : (long?)null, parcelas.Plano.FranquiaTotalKm);
+        Assert.IsFalse(parcelas.Plano.QuilometragemPendente);
+    }
+
     private static ParametrosPlano Parametros(ModalidadePlano modalidade) =>
         new(modalidade, 100m, modalidade == ModalidadePlano.Livre ? null : 2m,
             modalidade == ModalidadePlano.Controlado ? 100 : null);

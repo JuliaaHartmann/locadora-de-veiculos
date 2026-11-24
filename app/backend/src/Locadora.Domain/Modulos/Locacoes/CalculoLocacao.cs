@@ -22,6 +22,9 @@ public sealed record ParametrosAdicional(Guid OrigemId, string Nome, CategoriaAd
 
 public sealed record ParcelaAdicional(ParametrosAdicional Item, decimal ValorBruto, decimal Valor);
 
+public sealed record ParcelasEfetivas(int Diarias, int KmRodados, ParametrosPlano Parametros, ParcelaPlano Plano,
+    IReadOnlyList<ParcelaAdicional> Adicionais);
+
 public sealed record EstimativaLocacao(int Diarias, ParametrosPlano Parametros, ParcelaPlano Plano,
     IReadOnlyList<ParcelaAdicional> Adicionais, decimal ParcelasConhecidas, decimal Caucao)
 {
@@ -29,15 +32,18 @@ public sealed record EstimativaLocacao(int Diarias, ParametrosPlano Parametros, 
     public bool Incompleta => true;
 }
 
-public static class CalculoLocacao
+public static partial class CalculoLocacao
 {
     public const decimal Caucao = 1000m;
 
-    public static int Diarias(DateTimeOffset saida, DateTimeOffset retorno)
+    public static int Diarias(DateTimeOffset saida, DateTimeOffset retorno) =>
+        Diarias(saida, retorno, "retornoPrevisto");
+
+    private static int Diarias(DateTimeOffset saida, DateTimeOffset retorno, string campo)
     {
         long ticks = (retorno - saida).Ticks;
         if (ticks < 0)
-            throw new ValidacaoException("retornoPrevisto", "O retorno não pode preceder a saída.");
+            throw new ValidacaoException(campo, "O retorno não pode preceder a saída.");
         return ticks == 0 ? 1 : checked((int)((ticks - 1) / TimeSpan.TicksPerDay + 1));
     }
 
@@ -50,8 +56,8 @@ public static class CalculoLocacao
         long? franquia = plano.Modalidade == ModalidadePlano.Controlado ? (long)plano.FranquiaDiariaKm!.Value * diarias : null;
         decimal? km = plano.Modalidade switch
         {
-            ModalidadePlano.Diario when kmRodados.HasValue => kmRodados.Value * plano.PrecoKm!.Value,
-            ModalidadePlano.Controlado when kmRodados.HasValue => Math.Max(0, kmRodados.Value - franquia!.Value) * plano.PrecoKm!.Value,
+            ModalidadePlano.Diario or ModalidadePlano.Controlado when kmRodados.HasValue =>
+                KmCobrados(kmRodados.Value, franquia) * plano.PrecoKm!.Value,
             ModalidadePlano.Diario or ModalidadePlano.Controlado or ModalidadePlano.Livre => null,
             _ => throw new ArgumentOutOfRangeException(nameof(plano)),
         };
@@ -66,12 +72,38 @@ public static class CalculoLocacao
     {
         var diarias = Diarias(saida, retorno);
         var parcelaPlano = Plano(plano, diarias, null);
-        var parcelas = adicionais.Select(item =>
-        {
-            var bruto = item.Preco * (item.Categoria != CategoriaAdicional.Taxa ||
-                item.Modalidade == ModalidadeTaxa.Diaria ? diarias : 1);
-            return new ParcelaAdicional(item, bruto, Arredondar(bruto));
-        }).ToArray();
+        var parcelas = CalcularAdicionais(adicionais, diarias);
         return new(diarias, plano, parcelaPlano, parcelas, parcelaPlano.Valor + parcelas.Sum(x => x.Valor), Caucao);
     }
+
+    private static long KmCobrados(int km, long? franquia) => Math.Max(0, km - (franquia ?? 0));
+
+    public static ParcelasEfetivas CalcularParcelasEfetivas(DateTimeOffset saida, DateTimeOffset retornoReal,
+        int hodometroInicial, int hodometroFinal, ParametrosPlano plano, IReadOnlyList<ParametrosAdicional> adicionais)
+    {
+        var diarias = Diarias(saida, retornoReal, "retornoReal");
+        var km = KmEfetivos(hodometroInicial, hodometroFinal);
+        return CalcularParcelasEfetivas(diarias, km, plano, adicionais);
+    }
+
+    private static ParcelasEfetivas CalcularParcelasEfetivas(int diarias, int km, ParametrosPlano plano,
+        IReadOnlyList<ParametrosAdicional> adicionais) =>
+        new(diarias, km, plano, Plano(plano, diarias, km), CalcularAdicionais(adicionais, diarias));
+
+    private static int KmEfetivos(int inicial, int final)
+    {
+        if (inicial < 0 || final < inicial)
+            throw new ValidacaoException("hodometroFinal", "O hodômetro final deve ser igual ou superior ao inicial.");
+        return final - inicial;
+    }
+
+    private static int Quantidade(ParametrosAdicional item, int diarias) =>
+        item.Categoria == CategoriaAdicional.Taxa && item.Modalidade == ModalidadeTaxa.Fixa ? 1 : diarias;
+
+    private static ParcelaAdicional[] CalcularAdicionais(IReadOnlyList<ParametrosAdicional> adicionais, int diarias) =>
+        adicionais.Select(item =>
+        {
+            var bruto = item.Preco * Quantidade(item, diarias);
+            return new ParcelaAdicional(item, bruto, Arredondar(bruto));
+        }).ToArray();
 }
