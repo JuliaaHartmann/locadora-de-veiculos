@@ -6,7 +6,7 @@ Ver [proposta](proposal.md) e [delta de Aluguéis](specs/alugueis/spec.md). Na b
 
 ## Goals / Non-Goals
 
-**Goals:** separar leitura/prévia de mutações; manter o final verificável mesmo após mudanças cadastrais; aplicar concorrência e replay sem enfraquecer o isolamento de histórico; preparar a verificação local da §7 e do roadmap F4 do [TDD](../../../docs/tdd.md).
+**Goals:** separar leitura/prévia de mutações; manter o final verificável mesmo após mudanças cadastrais; aplicar concorrência e replay sem enfraquecer o isolamento de histórico; preparar a verificação local da §7 e do roadmap F4 do [TDD](../../../../docs/tdd.md).
 
 **Non-Goals:** redesign global, nova camada ou serviço, novo mecanismo de sessão, migração de dados históricos inexistentes, pagamentos, reserva, reabertura, fotos ou preparação de ambiente publicado.
 

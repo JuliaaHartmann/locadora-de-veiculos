@@ -338,7 +338,7 @@ async function executar() {
     if (process.env.F4_CAPTURAS) {
       await mkdir(process.env.F4_CAPTURAS, { recursive: true });
       const prototipo = await contexto.newPage();
-      const base = resolve(__dirname, '../../openspec/changes/fase-4-devolucao-operacao-local/prototypes');
+      const base = resolve(__dirname, '../../openspec/changes/archive/2026-11-23-fase-4-devolucao-operacao-local/prototypes');
       for (const nome of ['devolucao', 'historico']) {
         await prototipo.goto(pathToFileURL(join(base, `${nome}.html`)).href);
         if (nome === 'devolucao') {
