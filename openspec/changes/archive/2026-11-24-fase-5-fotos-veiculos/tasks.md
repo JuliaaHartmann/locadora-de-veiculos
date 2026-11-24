@@ -4,7 +4,7 @@
 
 **Revisão da coluna Foto — 24/11/2026:** o solicitante selecionou **Aprovar revisão** e, após a atualização e verificação offline do protótipo, **Aprovar e implementar** no harness. A aprovação cobre a coluna na lista simples e agrupada e a leitura privada sob demanda; não cobre R2, publicação nem a inspeção manual da aplicação.
 
-**Revisão dos critérios de saída — 24/11/2026:** o solicitante aprovou transferir somente a validação no App Service Linux e no ingresso HTTPS reais para [F6-06](../../../docs/tdd.md#qualificação-de-fotos-no-app-service-linux-f6-06) e confirmou a revisão documental no harness. As provas locais e do R2 continuam obrigatórias na F5. Esta aprovação não autoriza a finalização, acesso ao Azure ou publicação.
+**Revisão dos critérios de saída — 24/11/2026:** o solicitante aprovou transferir somente a validação no App Service Linux e no ingresso HTTPS reais para [F6-06](../../../../docs/tdd.md#qualificação-de-fotos-no-app-service-linux-f6-06) e confirmou a revisão documental no harness. As provas locais e do R2 continuam obrigatórias na F5. Esta aprovação não autoriza a finalização, acesso ao Azure ou publicação.
 
 ## 1. Abertura técnica
 
@@ -41,11 +41,11 @@
 
 ## Workflow follow-up
 
-- Aguardar nova confirmação do solicitante para iniciar a finalização. Revisão de entrega, commits, push, PR, Sync, Archive e merge são etapas separadas, regidas por `AGENTS.md`; nenhuma foi executada nesta revisão.
+- Com autorização posterior do solicitante, a revisão de entrega, os commits, o push, o [PR #5](https://github.com/JuliaaHartmann/locadora-de-veiculos/pull/5), o Sync e o Archive foram executados na branch da F5. A integração à `main` ainda requer revisão e autorização de merge, conforme `AGENTS.md`.
 
 ## Evidências do apply local — 24/11/2026
 
-- Os [resultados e limitações](evidencias.md) e o [contrato F5](../../../app/backend/docs/contratos-f5.md) registram o que foi executado. A SDD já cobria o upload automático após cadastro e o retry exclusivo da imagem; não foi alterado o escopo aprovado.
+- Os [resultados e limitações](evidencias.md) e o [contrato F5](../../../../app/backend/docs/contratos-f5.md) registram o que foi executado. A SDD já cobria o upload automático após cadastro e o retry exclusivo da imagem; não foi alterado o escopo aprovado.
 - `2.1–3.3`: 104 testes unitários e 97 de integração aprovados na suíte com SQL Server isolado, incluindo migration, validar/sanear arquivo, volume privado, retomada em novo host, reuso da chave, concorrência, isolamento e contratos HTTP.
 - `4.1–4.2`: 81 testes em 10 arquivos no Vitest, build e checagem de tipos aprovados; o teste do cliente confirma multipart e bearer só na API própria.
 - `1.1` e `1.2`: [qualificação local](evidencias.md#qualificação-local-dos-limites-de-processamento--24112026) passou em Ubuntu/.NET 10 (`ldd` e 8 testes, com 12 medições), e 3 testes com a API/SQL isolados verificaram fronteiras, concorrência e descarte após o prazo. A regressão passou com 104 unitários e 100 de integração. A prova no Azure continua pendente em F6-06; o prazo cooperativo não equivale a interrupção rígida do codec.
