@@ -295,7 +295,7 @@ async function executar() {
       assert.equal((await contexto.request.get(api + propria.rota, { headers: propria.auth })).status(), 401);
     }
     const prototipo = await contexto.newPage();
-    await prototipo.goto(pathToFileURL(resolve(__dirname, '../../openspec/changes/fase-5-fotos-veiculos/prototypes/frota-foto.html')).href);
+    await prototipo.goto(pathToFileURL(resolve(__dirname, '../../openspec/changes/archive/2026-11-24-fase-5-fotos-veiculos/prototypes/frota-foto.html')).href);
     await prototipo.getByRole('columnheader', { name: 'Foto', exact: true }).waitFor();
     await prototipo.getByRole('img', { name: 'Foto do veículo FICTÍCIO01' }).waitFor();
     await prototipo.getByText('Sem foto', { exact: true }).waitFor();

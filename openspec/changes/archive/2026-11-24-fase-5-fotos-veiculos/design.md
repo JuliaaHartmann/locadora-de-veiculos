@@ -2,7 +2,7 @@
 
 ## Context
 
-Ver [proposta](proposal.md), [delta de Frota](specs/grupos-planos-veiculos/spec.md) e [delta de Fotos](specs/fotos-veiculos/spec.md). A `main` verificada na abertura é `5a70ba8`: Frota já tem cadastro independente, sessão, paginação, filtro, agrupamento, ETag e bloqueio de edição via `paraEdicao=true` para veículo com aluguel aberto. Domain, Application, Infrastructure e Api permanecem separados no monólito. O [TDD §5.5](../../../docs/tdd.md#55-fotos-privadas) define o protocolo, mas não há foto ativa, adaptador, compatibilidade nativa ensaiada ou R2 verificado nesta base.
+Ver [proposta](proposal.md), [delta de Frota](specs/grupos-planos-veiculos/spec.md) e [delta de Fotos](specs/fotos-veiculos/spec.md). A `main` verificada na abertura é `5a70ba8`: Frota já tem cadastro independente, sessão, paginação, filtro, agrupamento, ETag e bloqueio de edição via `paraEdicao=true` para veículo com aluguel aberto. Domain, Application, Infrastructure e Api permanecem separados no monólito. O [TDD §5.5](../../../../docs/tdd.md#55-fotos-privadas) define o protocolo, mas não há foto ativa, adaptador, compatibilidade nativa ensaiada ou R2 verificado nesta base.
 
 ## Goals / Non-Goals
 
@@ -56,11 +56,11 @@ Não há lacuna de produto pendente para revisão dos artefatos. A tarefa de abe
 ## Registro do apply local — 24/11/2026
 
 - O fluxo solicitado já estava nas decisões 6–7 e no [protótipo aprovado](prototypes/frota-foto.html). O apply não mudou proposta, deltas ou comportamento do protótipo.
-- O [contrato materializado](../../../app/backend/docs/contratos-f5.md) registra os códigos HTTP, a migration aditiva e os limites de processamento. Há cancelamento na leitura do corpo e nas fronteiras do codec, sem preempção de uma chamada nativa em andamento; resultado fora do prazo não é ativado. Não interpretar o ensaio Windows como limite total de memória ou prova no App Service Linux do TDD.
+- O [contrato materializado](../../../../app/backend/docs/contratos-f5.md) registra os códigos HTTP, a migration aditiva e os limites de processamento. Há cancelamento na leitura do corpo e nas fronteiras do codec, sem preempção de uma chamada nativa em andamento; resultado fora do prazo não é ativado. Não interpretar o ensaio Windows como limite total de memória ou prova no App Service Linux do TDD.
 - O adaptador R2 foi preparado sem execução remota no primeiro apply. O [ensaio posterior](evidencias.md#ensaio-real-no-r2--24112026) validou o contrato no bucket privado de desenvolvimento, sem alterar a política de retenção nem autorizar publicação. A [qualificação local](evidencias.md#qualificação-local-dos-limites-de-processamento--24112026) verificou o binário nativo em Ubuntu/.NET 10 e os limites na API com SQL Server isolado. Nenhuma das provas substitui a qualificação no App Service Linux.
 
 ## Revisão aprovada da verificação — 24/11/2026
 
-O solicitante aprovou transferir somente a prova no processo real do App Service Linux F1 e no ingresso HTTPS para [F6-06](../../../docs/tdd.md#qualificação-de-fotos-no-app-service-linux-f6-06), antes de homologar ou publicar. A F5 mantém as provas de compatibilidade local, processamento limitado e descarte sem ativação, o ensaio real do R2 e a validação da interface privada. O contrato não muda: JPEG/PNG estáticos, 5 MiB para o multipart completo, 16.000.000 de pixels, reencode, limite de saída, uma vaga por processo sem fila, prazos cooperativos e isolamento por empresa.
+O solicitante aprovou transferir somente a prova no processo real do App Service Linux F1 e no ingresso HTTPS para [F6-06](../../../../docs/tdd.md#qualificação-de-fotos-no-app-service-linux-f6-06), antes de homologar ou publicar. A F5 mantém as provas de compatibilidade local, processamento limitado e descarte sem ativação, o ensaio real do R2 e a validação da interface privada. O contrato não muda: JPEG/PNG estáticos, 5 MiB para o multipart completo, 16.000.000 de pixels, reencode, limite de saída, uma vaga por processo sem fila, prazos cooperativos e isolamento por empresa.
 
 Não se presume que o pacote, a memória ou o comportamento da API no Ubuntu se reproduzam no plano gratuito. A F6 deverá validar o pacote e os limites na plataforma real e registrar falhas de forma segura. Se não couber na oferta ou algum requisito falhar, a homologação e a publicação ficam bloqueadas até revisão. A escolha entre implantação manual, automatizada ou híbrida fica para a F6.
