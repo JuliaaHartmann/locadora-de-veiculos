@@ -10,15 +10,15 @@ public static class HorarioLocacao
 
     public static DateTimeOffset ParaSaoPaulo(DateTimeOffset instante) => TimeZoneInfo.ConvertTime(instante, Fuso);
 
-    public static DateTimeOffset InterpretarRetorno(string? texto)
+    public static DateTimeOffset InterpretarRetorno(string? texto, string campo = "retornoPrevisto")
     {
         if (!DateTimeOffset.TryParseExact(texto, Formatos, CultureInfo.InvariantCulture, DateTimeStyles.None, out var retorno))
-            throw new ValidacaoException("retornoPrevisto", "Informe data e hora ISO 8601 com o deslocamento do horário de São Paulo.");
+            throw new ValidacaoException(campo, "Informe data e hora ISO 8601 com o deslocamento do horário de São Paulo.");
 
         // Na volta do horário de verão os dois offsets históricos são distinguíveis pelo instante.
         // A conversão de ida e volta também rejeita horários de parede que nunca existiram.
         if (ParaSaoPaulo(retorno).Offset != retorno.Offset)
-            throw new ValidacaoException("retornoPrevisto", "O horário ou deslocamento não corresponde ao fuso de São Paulo.");
+            throw new ValidacaoException(campo, "O horário ou deslocamento não corresponde ao fuso de São Paulo.");
         return retorno;
     }
 

@@ -11,8 +11,7 @@ public sealed partial class AluguelService
 
     public async Task<RespostaComVersao<AluguelDetalhe>> CriarAsync(ComandoAluguel comando, string? chave, CancellationToken ct)
     {
-        if (chave is null || chave.Length is 0 or > 128 || chave.Any(c => c < '!' || c > '~' || c == ','))
-            throw new ValidacaoException("idempotencyKey", "Informe uma chave de idempotência válida.");
+        chave = ValidarChave(chave);
         var ator = escrita.UsuarioId ?? throw new UnauthorizedAccessException("Ator não autenticado.");
         var hash = HashComando(comando);
 
@@ -25,7 +24,7 @@ public sealed partial class AluguelService
                     throw new ConflitoException("A chave de idempotência já foi usada com outros dados.", "idempotencyKey");
                 var (original, snapshot) = await repositorio.LerResultadoOriginalAsync(registro.RevisaoId, token);
                 return new RespostaComVersao<AluguelDetalhe>(
-                    Detalhe(original, snapshot) with { Estado = EstadoAluguel.EmAberto }, Etag.De(registro.VersaoOriginal));
+                    Detalhe(original, snapshot) with { Estado = EstadoAluguel.EmAberto, Oculto = false }, Etag.De(registro.VersaoOriginal));
             }
 
             var agora = relogio.Agora.ToUniversalTime();
@@ -43,7 +42,7 @@ public sealed partial class AluguelService
             };
             await repositorio.RegistrarResultadoAsync(aluguel, novoRegistro, token);
             return new RespostaComVersao<AluguelDetalhe>(Detalhe(aluguel, revisao), Etag.De(aluguel.Versao));
-        }, criacaoIdempotente: true, ct);
+        }, idempotente: true, ct);
     }
 
     public async Task<RespostaComVersao<AluguelDetalhe>> EditarAsync(Guid id, ComandoAluguel comando,
@@ -62,7 +61,7 @@ public sealed partial class AluguelService
             repositorio.Adicionar(nova);
             escrita.Auditar("aluguel.editado", nameof(Aluguel), atual.Id, CamposContrato);
             return (atual, nova);
-        }, criacaoIdempotente: false, ct);
+        }, idempotente: false, ct);
         return new(Detalhe(aluguel, revisao), Etag.De(aluguel.Versao));
     }
 
@@ -70,6 +69,11 @@ public sealed partial class AluguelService
     [
         "clienteId", "condutorId", "veiculoId", "planoId", "retornoPrevisto", "hodometroInicial", "taxaIds", "seguros",
     ];
+
+    private static string ValidarChave(string? chave) =>
+        chave is null || chave.Length is 0 or > 128 || chave.Any(c => c < '!' || c > '~' || c == ',')
+            ? throw new ValidacaoException("idempotencyKey", "Informe uma chave de idempotência válida.")
+            : chave;
 
     private static byte[] HashComando(ComandoAluguel comando) => SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new
     {
@@ -131,7 +135,7 @@ public sealed partial class AluguelService
         return revisao;
     }
 
-    private static AluguelDetalhe Detalhe(Aluguel aluguel, ContratoSnapshot revisao)
+    private static AluguelDetalhe Detalhe(Aluguel aluguel, ContratoSnapshot revisao, FechamentoAluguel? final = null)
     {
         var (cliente, condutor, veiculo, grupo) = (
             new ContratanteLocacao(revisao.ClienteId, revisao.ClienteNome, revisao.ClienteTipo,
@@ -140,14 +144,15 @@ public sealed partial class AluguelService
             new VeiculoLocacao(revisao.VeiculoId, revisao.VeiculoPlaca, revisao.VeiculoMarca, revisao.VeiculoModelo,
                 revisao.Combustivel, Decimais.FormatacaoCapacidade(revisao.CapacidadeLitros)),
             new GrupoLocacao(revisao.GrupoId, revisao.GrupoNome));
-        var estimativa = new DemonstrativoEstimado(revisao.Diarias, PlanoDto(revisao.PlanoId, revisao.ModalidadePlano,
+        var estimativa = final is null ? new DemonstrativoEstimado(revisao.Diarias, PlanoDto(revisao.PlanoId, revisao.ModalidadePlano,
                 revisao.PrecoDiario, revisao.PrecoKm, revisao.FranquiaDiariaKm),
             Valor(revisao.ValorPlano), revisao.FranquiaTotalKm, revisao.ModalidadePlano != ModalidadePlano.Livre,
             revisao.Itens.OrderBy(x => x.Categoria).ThenBy(x => x.TaxaId).Select(x => new ComponenteContratado(
                 x.TaxaId ?? x.SeguroId!.Value, x.Categoria, x.Nome, x.Modalidade, Decimais.FormatacaoMonetaria(x.Preco),
                 Valor(x.Valor))).ToArray(),
-            Valor(revisao.ParcelasConhecidas), Valor(revisao.Caucao), true);
+            Valor(revisao.ParcelasConhecidas), Valor(revisao.Caucao), true) : null;
         return new(aluguel.Id, aluguel.Estado, cliente, condutor, veiculo, grupo, HorarioLocacao.ParaSaoPaulo(aluguel.SaidaUtc),
-            HorarioLocacao.ParaSaoPaulo(revisao.RetornoPrevistoUtc), revisao.HodometroInicial, estimativa);
+            HorarioLocacao.ParaSaoPaulo(revisao.RetornoPrevistoUtc), revisao.HodometroInicial, estimativa,
+            final is null ? null : Demonstrativo(final, revisao), aluguel.ExcluidoEmUtc is not null);
     }
 }

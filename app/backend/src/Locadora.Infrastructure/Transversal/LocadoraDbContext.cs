@@ -192,14 +192,21 @@ public sealed partial class LocadoraDbContext(DbContextOptions<LocadoraDbContext
         builder.Entity<Auditoria>().HasIndex(x => new { x.EmpresaId, x.OcorridoEm });
     }
 
-    private void ConfigurarEntidadeEmpresa<T>(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<T> entidade)
+    private void ConfigurarEntidadeEmpresa<T>(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<T> entidade,
+        string? filtroOcultacao = null)
         where T : EntidadeEmpresa
     {
         entidade.HasKey(x => x.Id);
         entidade.Property(x => x.EmpresaId).IsConcurrencyToken();
         entidade.Property(x => x.Versao).IsRowVersion();
         entidade.HasAlternateKey(x => new { x.EmpresaId, x.Id });
-        entidade.HasQueryFilter(x => x.EmpresaId == contexto.EmpresaId && x.ExcluidoEmUtc == null);
+        if (filtroOcultacao is null)
+            entidade.HasQueryFilter(x => x.EmpresaId == contexto.EmpresaId && x.ExcluidoEmUtc == null);
+        else
+        {
+            entidade.HasQueryFilter("Empresa", x => x.EmpresaId == contexto.EmpresaId);
+            entidade.HasQueryFilter(filtroOcultacao, x => x.ExcluidoEmUtc == null);
+        }
         entidade.HasOne<Empresa>().WithMany()
             .HasForeignKey(x => x.EmpresaId).OnDelete(DeleteBehavior.Restrict);
     }
@@ -235,6 +242,8 @@ public sealed partial class LocadoraDbContext(DbContextOptions<LocadoraDbContext
             if (contexto.EmpresaId is not Guid empresa || entrada.Entity.EmpresaId != empresa ||
                 (entrada.State != EntityState.Added && entrada.Property(x => x.EmpresaId).OriginalValue != empresa))
                 throw new UnauthorizedAccessException("Escrita fora do contexto autorizado.");
+            if (entrada.State != EntityState.Added && entrada.Entity is FechamentoAluguel or ItemFechamentoAluguel)
+                throw new InvalidOperationException("O demonstrativo final é imutável.");
         }
 
         foreach (var entrada in ChangeTracker.Entries<VinculoPfPj>()

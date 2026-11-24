@@ -40,7 +40,7 @@ public sealed class EscritasLocacoesTests
         }
         var resultados = await Task.WhenAll(Tentar("corrida-A"), Tentar("corrida-B"));
         var sucesso = resultados.Single(x => x is not null)!;
-        Assert.AreEqual("170.00", sucesso.Valor.Estimativa.ParcelasConhecidas);
+        Assert.AreEqual("170.00", sucesso.Valor.Estimativa!.ParcelasConhecidas);
         Assert.AreEqual(dados.Agora.AddMinutes(1), sucesso.Valor.Saida);
         await ComBanco(fabrica, dados, ator, async db =>
         {
@@ -98,7 +98,7 @@ public sealed class EscritasLocacoesTests
         var replay = await ComServico(fabrica, dados, ator, s => s.CriarAsync(comando, "original", default));
         Assert.AreEqual(criado.Etag, replay.Etag);
         Assert.AreEqual(criado.Valor.Id, replay.Valor.Id);
-        Assert.AreEqual("135.00", replay.Valor.Estimativa.ParcelasConhecidas);
+        Assert.AreEqual("135.00", replay.Valor.Estimativa!.ParcelasConhecidas);
         var conflito = await Assert.ThrowsExactlyAsync<ConflitoException>(() =>
             ComServico(fabrica, dados, ator, s => s.CriarAsync(comando with { HodometroInicial = 25 }, "original", default)));
         Assert.AreEqual("idempotencyKey", conflito.Campo);
@@ -116,9 +116,10 @@ public sealed class EscritasLocacoesTests
             comando with { TaxaIds = [dados.Taxa.Id, taxaNova] }, criado.Etag, default));
         Assert.AreNotEqual(criado.Etag, revisao.Etag);
         Assert.AreEqual(criado.Valor.Saida, revisao.Valor.Saida);
-        Assert.AreEqual("100", revisao.Valor.Estimativa.Plano.PrecoDiario);
-        Assert.AreEqual("5", revisao.Valor.Estimativa.Adicionais.Single(x => x.Categoria == CategoriaAdicional.SeguroCliente).Preco);
-        Assert.AreEqual("145.00", revisao.Valor.Estimativa.ParcelasConhecidas);
+        var revisada = revisao.Valor.Estimativa!;
+        Assert.AreEqual("100", revisada.Plano.PrecoDiario);
+        Assert.AreEqual("5", revisada.Adicionais.Single(x => x.Categoria == CategoriaAdicional.SeguroCliente).Preco);
+        Assert.AreEqual("145.00", revisada.ParcelasConhecidas);
         Assert.AreEqual(criado.Valor.Cliente.Nome, revisao.Valor.Cliente.Nome);
         await Assert.ThrowsExactlyAsync<PrecondicaoException>(() => ComServico(fabrica, dados, ator, s =>
             s.EditarAsync(criado.Valor.Id, comando, criado.Etag, default)));
@@ -126,7 +127,7 @@ public sealed class EscritasLocacoesTests
             s.EditarAsync(criado.Valor.Id, comando with { HodometroInicial = -1 }, revisao.Etag, default)));
         var repetido = await ComServico(fabrica, dados, ator, s => s.CriarAsync(comando, "original", default));
         Assert.AreEqual(criado.Etag, repetido.Etag);
-        Assert.AreEqual("135.00", repetido.Valor.Estimativa.ParcelasConhecidas);
+        Assert.AreEqual("135.00", repetido.Valor.Estimativa!.ParcelasConhecidas);
         await ComBanco(fabrica, dados, ator, async db =>
         {
             Assert.AreEqual(1, await db.Alugueis.CountAsync());
