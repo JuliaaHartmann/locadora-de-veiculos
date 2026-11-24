@@ -1,0 +1,462 @@
+<!doctype html>
+<!--
+  High-fidelity prototype — J-04
+  Source: ../proposal.md (What Changes), ../specs/alugueis/spec.md
+  Style: Tailwind CSS 4.3.5 theme CSS excerpt inlined from the official npm release (MIT); app styles and native controls adapted inline.
+  Covered:
+    RF-16/17 / Scenario: Informar o retorno de um aluguel aberto -> open contract, return action, read-only references, form and eligible rates.
+    RF-17 / Scenario: Corrigir dados inválidos sem perder a entrada -> labeled fields, linked errors, retained values.
+    RF-18 / Scenario: Revisar uma prévia válida -> preview, invalidation and confirmation.
+    RN-01–05 / Scenario: Calcular duração e quilometragem nas três modalidades -> duration, mileage, plan and allowance.
+    RN-06 / Scenario: Discriminar adicionais e conservar seus preços -> itemized contract rates, insurance and selected return rates.
+    RN-07 / Scenario: Aplicar a vigência de combustível do retorno real -> fuel line and quantity; fixture preserves applicable price.
+    RF-13 / Scenario: Bloquear quando falta preço aplicável -> preview blocker and corrective guidance.
+    RN-08/09 / Scenario: Distinguir multa, total e caução -> late fee, distinct totals and separate deposit.
+    RF-07/17 / Scenario: Confirmar a prévia aceita -> completed contract, availability feedback and read-only final statement.
+    RF-17 / Scenario: Exigir nova prévia quando mudam os preços aplicáveis -> retained form, conflict and explicit preview.
+    RF-17 / Scenario: Não sobrescrever revisão ou estado concorrente -> stale feedback and explicit reload.
+    RNF-03 / Scenario: Repetir o mesmo fechamento sem duplicar efeitos -> uncertain result, locked intent, replay.
+    CA-09 / Scenario: Falha de gravação não altera disponibilidade -> failure alert and retained form.
+    RNF-04 / Scenario: Exibir estados acessíveis da consulta e dos formulários -> focus, labels, live feedback and keyboard.
+  Not specified (presentational only): existing inert navigation, local reviewer banner and URL fixtures; no service, session, audit or durable state.
+  Open questions: none for this prototype.
+  Open directly from disk (file://). Fictional data, no network or storage.
+-->
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+  <title>Protótipo de devolução | Aluguéis</title>
+  <style>
+    /*! Tailwind CSS v4.3.5 | MIT License | Copyright (c) Tailwind Labs, Inc. | https://tailwindcss.com */
+    /*
+      Permission is hereby granted, free of charge, to any person obtaining a copy
+      of this software and associated documentation files (the "Software"), to deal
+      in the Software without restriction, including without limitation the rights
+      to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+      copies of the Software, and to permit persons to whom the Software is
+      furnished to do so, subject to the following conditions:
+
+      The above copyright notice and this permission notice shall be included in all
+      copies or substantial portions of the Software.
+
+      THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+      IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+      FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+      AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+      LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+      OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+      SOFTWARE.
+    */
+    /* Theme tokens from package/theme.css, used as regular custom properties. */
+    :root {
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+      --color-slate-50: oklch(98.4% 0.003 247.858); --color-slate-100: oklch(96.8% 0.007 247.896);
+      --color-slate-200: oklch(92.9% 0.013 255.508); --color-slate-300: oklch(86.9% 0.022 252.894);
+      --color-slate-500: oklch(55.4% 0.046 257.281); --color-slate-600: oklch(44.6% 0.043 257.281);
+      --color-slate-900: oklch(20.8% 0.042 265.755); --color-white: #fff;
+      --color-blue-50: oklch(97% 0.014 254.604); --color-blue-200: oklch(88.2% 0.059 254.128);
+      --color-blue-300: oklch(80.9% 0.105 251.813); --color-blue-700: oklch(48.8% 0.243 264.376);
+      --color-blue-800: oklch(42.4% 0.199 265.638);
+      --color-red-50: oklch(97.1% 0.013 17.38); --color-red-300: oklch(80.8% 0.114 19.571);
+      --color-red-800: oklch(44.4% 0.177 26.899);
+      --color-emerald-50: oklch(97.9% 0.021 166.113); --color-emerald-200: oklch(90.5% 0.093 164.15);
+      --color-emerald-800: oklch(43.2% 0.095 166.913);
+      --color-amber-50: oklch(98.7% 0.022 95.277); --color-amber-200: oklch(92.4% 0.12 95.746);
+      --color-amber-900: oklch(41.4% 0.112 45.904);
+      --spacing: 0.25rem; --radius-md: 0.375rem; --radius-lg: 0.5rem; --radius-xl: 0.75rem;
+    }
+    *,*::before,*::after { box-sizing:border-box; }
+    [hidden] { display:none !important; }
+    body { margin:0; background:var(--color-slate-50); color:var(--color-slate-900); font:1rem/1.5 var(--font-sans); }
+    h1,h2,h3,p,dl,dd { margin:0; }
+    h1 { font-size:1.65rem; line-height:1.2; letter-spacing:-.024em; }
+    h2 { font-size:1.125rem; line-height:1.35; }
+    h3 { font-size:1rem; }
+    small,.muted { color:var(--color-slate-600); font-size:.875rem; }
+    .wrap { width:min(72rem,calc(100% - 2rem)); margin-inline:auto; }
+    .review { padding:.4rem 0; background:var(--color-slate-100); color:var(--color-slate-600); font-size:.8125rem; }
+    .bar { background:white; border-bottom:1px solid var(--color-slate-200); }
+    nav { display:flex; flex-wrap:wrap; gap:.25rem 1.25rem; padding:.85rem 0; font-size:.9rem; font-weight:500; color:var(--color-slate-600); }
+    nav [aria-current] { color:var(--color-blue-800); font-weight:700; }
+    .skip { position:absolute; left:1rem; top:.5rem; z-index:2; padding:.5rem; background:white; color:var(--color-blue-800); }
+    .skip:not(:focus) { clip-path:inset(50%); }
+    :focus-visible,[tabindex="-1"]:focus { outline:3px solid var(--color-blue-700); outline-offset:3px; }
+    main { padding-block:clamp(1.35rem,3vw,2.3rem) 3rem; }
+    .hero,.summary,.actions { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.75rem; }
+    .hero { margin-bottom:1.15rem; }
+    .hero h1 { margin:.25rem 0; }
+    .actions { justify-content:flex-start; }
+    .actions > * { max-width:100%; }
+    .card { min-width:0; background:white; border:1px solid var(--color-slate-300); border-radius:var(--radius-xl); box-shadow:0 1px 2px rgb(15 23 42 / .06); }
+    .pad { padding:1rem; }
+    .head { padding:1rem; border-bottom:1px solid var(--color-slate-200); }
+    .head p { margin-top:.25rem; }
+    .columns,.stack,.data,.fields { display:grid; gap:1rem; }
+    .columns { align-items:start; }
+    .data,.fields { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .data dt { color:var(--color-slate-600); font-size:.85rem; font-weight:600; }
+    .data dd { overflow-wrap:anywhere; }
+    .summary { margin-bottom:1rem; }
+    .summary h2 { margin-top:.12rem; }
+    .summary .data { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .badge { display:inline-block; border:1px solid var(--color-blue-200); color:var(--color-blue-800); background:var(--color-blue-50); border-radius:999px; padding:.12rem .6rem; font-weight:700; font-size:.83rem; white-space:nowrap; }
+    .badge.done,.success { border-color:var(--color-emerald-200); background:var(--color-emerald-50); color:var(--color-emerald-800); }
+    .notice { padding:.7rem .9rem; border:1px solid var(--color-blue-200); border-radius:var(--radius-lg); background:var(--color-blue-50); color:var(--color-blue-800); }
+    .notice.success { border-color:var(--color-emerald-200); background:var(--color-emerald-50); color:var(--color-emerald-800); margin-bottom:1rem; }
+    .notice.error { border-color:var(--color-red-300); background:var(--color-red-50); color:var(--color-red-800); margin-bottom:1rem; }
+    .notice.error .actions { margin-top:.55rem; }
+    .notice.wait { border-color:var(--color-amber-200); background:var(--color-amber-50); color:var(--color-amber-900); }
+    .field { display:grid; align-content:start; gap:.22rem; }
+    .field:first-child { grid-column:1/-1; }
+    label { font-weight:500; }
+    input:not([type=checkbox]) { width:100%; min-height:2.72rem; border:1px solid var(--color-slate-500); border-radius:var(--radius-md); background:white; padding:.48rem .75rem; color:inherit; font:inherit; }
+    [aria-invalid="true"] { border-color:var(--color-red-800) !important; }
+    .field-error { color:var(--color-red-800); }
+    fieldset { min-width:0; margin:0; padding:0; border:0; }
+    legend { padding:0; font-weight:700; }
+    .option { display:flex; align-items:flex-start; gap:.65rem; padding:.7rem; border:1px solid var(--color-slate-300); border-radius:var(--radius-lg); margin-top:.55rem; cursor:pointer; }
+    .option:has(:checked) { background:var(--color-blue-50); border-color:var(--color-blue-300); }
+    .option input { width:1.25rem; height:1.25rem; flex:none; margin:.1rem 0; accent-color:var(--color-blue-700); }
+    .option small,.line small { display:block; margin-top:.08rem; }
+    button { min-height:2.6rem; border:1px solid transparent; border-radius:var(--radius-md); background:var(--color-blue-700); color:white; font:600 .94rem/1.3 var(--font-sans); padding:.6rem .9rem; cursor:pointer; text-align:center; }
+    button:hover:not(:disabled) { background:var(--color-blue-800); }
+    button.secondary { background:white; border-color:var(--color-slate-500); color:var(--color-slate-900); }
+    button.secondary:hover:not(:disabled) { background:var(--color-slate-100); }
+    button:disabled { background:var(--color-slate-100); color:var(--color-slate-600); border-color:var(--color-slate-300); cursor:not-allowed; }
+    .money { font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .line,.total,.deposit dl { display:flex; justify-content:space-between; flex-wrap:wrap; align-items:baseline; gap:.15rem .75rem; }
+    .line + .line { margin-top:.65rem; padding-top:.65rem; border-top:1px solid var(--color-slate-200); }
+    .line dt { flex:1 1 8rem; }
+    .total { background:var(--color-blue-50); color:var(--color-blue-800); padding:.75rem; border-radius:var(--radius-lg); }
+    .total strong { font-size:1.35rem; line-height:1.2; }
+    .deposit { background:var(--color-slate-50); padding:.85rem 1rem; border-block-start:1px solid var(--color-slate-200); border-radius:0 0 var(--radius-xl) var(--radius-xl); }
+    .statement [data-confirm] { width:100%; }
+    @media (min-width:52rem) { .columns { grid-template-columns:minmax(0,1.55fr) minmax(17rem,1fr); } }
+    @media (max-width:29rem) { .data,.fields,.summary .data { grid-template-columns:1fr; } .summary { align-items:flex-start; } }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#screen-title">Ir para o conteúdo de Aluguéis</a>
+  <div class="review"><p class="wrap">Protótipo de devolução · Dados fictícios · Recarregar reinicia a demonstração</p></div>
+  <header class="bar"><nav class="wrap" aria-label="Navegação principal"><span>Painel</span><span>Frota</span><span>Pessoas</span><span>Preços</span><span aria-current="page">Aluguéis</span></nav></header>
+  <main class="wrap">
+    <header class="hero">
+      <div>
+        <p class="muted" id="path">Operação / Aluguéis / Detalhe</p>
+        <h1 id="screen-title" tabindex="-1">Aluguel AL-2408</h1>
+        <p class="muted" id="subtitle">Confira os dados preservados do contrato em aberto.</p>
+      </div>
+      <div class="actions" id="hero-actions">
+        <button type="button" class="secondary" id="back" hidden>Voltar ao contrato</button>
+        <button type="button" id="open-return">Registrar devolução</button>
+      </div>
+    </header>
+
+    <p class="notice success" id="success" tabindex="-1" role="status" hidden>Devolução concluída. O veículo está disponível para nova contratação.</p>
+    <div class="notice error" id="error" role="alert" tabindex="-1" hidden>
+      <strong id="error-title"></strong><p id="error-text"></p>
+      <div class="actions" id="recovery" hidden>
+        <button type="button" class="secondary" id="reload" hidden>Recarregar contrato</button>
+        <button type="button" id="retry" hidden>Repetir confirmação</button>
+      </div>
+    </div>
+
+    <section class="card pad summary" aria-labelledby="contract">
+      <div><p class="muted">AL-2408 · Grupo Compactos</p><h2 id="contract">SIM0A08 · Modelo Aurora</h2></div>
+      <dl class="data"><div><dt>Condutor</dt><dd>Marina Exemplo</dd></div><div><dt>Plano</dt><dd id="plan-name">Livre</dd></div></dl>
+      <span class="badge" id="status">Em aberto</span>
+    </section>
+
+    <div class="columns">
+      <div class="stack">
+        <section class="card" aria-labelledby="period-title">
+          <header class="head"><h2 id="period-title">Dados do contrato</h2><p class="muted">Referências preservadas · Horário de São Paulo</p></header>
+          <dl class="data pad">
+            <div><dt>Contratante</dt><dd>Locação Exemplo Ltda.</dd></div><div><dt>Condutor</dt><dd>Marina Exemplo</dd></div>
+            <div><dt>Saída</dt><dd>23/11/2026 às 10:00</dd></div><div><dt>Retorno previsto</dt><dd id="planned">24/11/2026 às 16:00</dd></div>
+            <div><dt>Hodômetro inicial</dt><dd>21.430 km</dd></div><div><dt>Combustível na saída</dt><dd>Gasolina · Tanque cheio (50 L)</dd></div>
+          </dl>
+        </section>
+        <form id="return-form" class="stack" novalidate hidden>
+          <section class="card" aria-labelledby="return-title">
+            <header class="head"><h2 id="return-title">Dados do retorno</h2><p class="muted">Informe as medições na entrega do veículo.</p></header>
+            <div class="fields pad">
+              <div class="field">
+                <label for="returned">Data e hora reais do retorno</label>
+                <input type="text" id="returned" placeholder="dd/mm/aaaa hh:mm" aria-describedby="returned-help returned-error" required>
+                <small id="returned-help">Use dia/mês/ano e hora de 24 h, no horário de São Paulo.</small><small class="field-error" id="returned-error"></small>
+              </div>
+              <div class="field">
+                <label for="odometer">Hodômetro final (km)</label>
+                <input type="text" inputmode="numeric" id="odometer" placeholder="Ex.: 21680" aria-describedby="odometer-help odometer-error" required>
+                <small id="odometer-help">Informe um inteiro a partir de 21.430 km.</small><small class="field-error" id="odometer-error"></small>
+              </div>
+              <div class="field">
+                <label for="fuel">Litros restantes (L)</label>
+                <input type="text" inputmode="decimal" id="fuel" placeholder="Ex.: 40" aria-describedby="fuel-help fuel-error" required>
+                <small id="fuel-help">De 0 a 50 L, conforme a capacidade contratada.</small><small class="field-error" id="fuel-error"></small>
+              </div>
+            </div>
+          </section>
+          <section class="card" aria-labelledby="extra-title">
+            <header class="head"><h2 id="extra-title">Taxas adicionais</h2><p class="muted">Os preços do contrato são preservados. As taxas já contratadas não aparecem para seleção.</p></header>
+            <div class="pad">
+              <fieldset id="rates"><legend>Taxas elegíveis (opcional)</legend>
+                <label class="option"><input type="checkbox" id="support"><span>Suporte de viagem<small id="support-price">R$ 10,00 por diária · por todas as diárias efetivas</small></span></label>
+              </fieldset>
+            </div>
+          </section>
+          <div class="actions"><button type="submit" id="calculate">Calcular prévia</button></div>
+        </form>
+        <section class="card" id="final-inputs" aria-labelledby="final-inputs-title" hidden>
+          <header class="head"><h2 id="final-inputs-title">Retorno registrado</h2><p class="muted">Dados preservados no fechamento.</p></header>
+          <dl class="data pad" id="final-data"></dl>
+        </section>
+      </div>
+
+      <section class="card statement" aria-labelledby="statement-title">
+        <header class="head"><h2 id="statement-title" tabindex="-1">Demonstrativo estimado</h2><p class="muted" id="statement-caption">Parcelas conhecidas do contrato · Não é o valor final</p></header>
+        <div class="pad stack" id="statement-body"></div>
+        <div class="deposit"><dl><dt><strong>Caução</strong></dt><dd class="money">R$ 1.000,00</dd></dl><small>Garantia separada, não incluída no custo.</small></div>
+      </section>
+    </div>
+  </main>
+  <script>
+    "use strict";
+    // Review fixtures are URL-only; they are not product controls.
+    const mode = new URLSearchParams(location.search).get('cenario');
+    const plan = mode === 'diario' ? 'Diário' : mode === 'controlado' ? 'Controlado' : 'Livre';
+    const start = Date.parse('2026-11-23T10:00:00-03:00');
+    let due = Date.parse('2026-11-24T16:00:00-03:00');
+    const capacity = 50000n;
+    const dayMs = 86400000;
+    let simulation = mode, view = 'contract', preview = null, retained = null, uncertain = false, changed = false, stale = false;
+    let rateCents = 1000n;
+    const by = id => document.getElementById(id);
+    const form = by('return-form');
+    const currency = new Intl.NumberFormat('pt-BR', {style:'currency', currency:'BRL'});
+    const integer = new Intl.NumberFormat('pt-BR');
+    const liters = new Intl.NumberFormat('pt-BR', {maximumFractionDigits:3});
+    const clock = new Intl.DateTimeFormat('pt-BR', {timeZone:'America/Sao_Paulo', year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23'});
+    const offsets = new Intl.DateTimeFormat('en-GB', {timeZone:'America/Sao_Paulo', timeZoneName:'longOffset'});
+    const money = cents => currency.format(`${cents / 100n}.${String(cents % 100n).padStart(2,'0')}`);
+    const duration = days => `${days} ${days === 1 ? 'diária' : 'diárias'}`;
+    const row = (title, detail, value) => `<div class="line"><dt>${title}<small>${detail}</small></dt><dd class="money">${value}</dd></div>`;
+    const total = (label, value) => `<div class="total"><span>${label}</span><strong class="money">${money(value)}</strong></div>`;
+    const displayClock = time => clock.format(time).replace(', ', ' às ');
+    by('plan-name').textContent = plan;
+
+    function render(focus = false) {
+      by('path').textContent = `Operação / Aluguéis / ${view === 'return' ? 'Devolução' : 'Detalhe'}`;
+      by('screen-title').textContent = view === 'return' ? 'Registrar devolução' : 'Aluguel AL-2408';
+      by('subtitle').textContent = view === 'return' ? 'Confira a prévia antes de concluir o aluguel.' :
+        view === 'final' ? 'Dados e valores preservados no fechamento.' : 'Confira os dados preservados do contrato em aberto.';
+      by('open-return').hidden = view !== 'contract';
+      by('back').hidden = view !== 'return';
+      by('back').disabled = uncertain;
+      by('hero-actions').hidden = view === 'final';
+      by('status').textContent = view === 'final' ? 'Concluído' : 'Em aberto';
+      by('status').classList.toggle('done', view === 'final');
+      by('success').hidden = view !== 'final';
+      by('planned').textContent = displayClock(due);
+      form.hidden = view !== 'return';
+      by('final-inputs').hidden = view !== 'final';
+      for (const id of ['returned','odometer','fuel','support','calculate']) by(id).disabled = uncertain || stale;
+      by('support-price').textContent = `${money(rateCents)} por diária · por todas as diárias efetivas`;
+      renderStatement();
+      if (focus) by('screen-title').focus();
+    }
+
+    function renderStatement() {
+      const box = by('statement-body');
+      const title = by('statement-title');
+      if (view === 'contract') {
+        title.textContent = 'Demonstrativo estimado';
+        by('statement-caption').textContent = 'Parcelas conhecidas do contrato · Não é o valor final';
+        const pending = plan === 'Livre' ? '' : row('Cobrança por quilômetro', plan === 'Controlado' ? '100 km por diária · franquia prevista de 200 km · R$ 2,00 por km excedente' : 'R$ 2,00 por km rodado', 'Pendente');
+        box.innerHTML = `<dl>${row(`Plano ${plan}`, '2 diárias previstas × R$ 100,00', 'R$ 200,00')}${pending}
+          ${row('Taxa de preparação', 'Taxa fixa contratada', 'R$ 30,00')}${row('Seguro do cliente', '2 diárias previstas × R$ 5,00', 'R$ 10,00')}
+          ${row('Seguro de terceiros', '2 diárias previstas × R$ 7,00', 'R$ 14,00')}</dl>${total('Parcelas conhecidas',25400n)}`;
+        return;
+      }
+      const final = view === 'final';
+      title.textContent = final ? 'Demonstrativo final' : 'Prévia do cálculo final';
+      by('statement-caption').textContent = final ? 'Valores registrados · Somente leitura' : 'Valores propostos · Não conclui nem libera o veículo';
+      if (!preview) {
+        box.innerHTML = `<p class="notice ${changed ? 'wait' : ''}" role="status">${changed ?
+          'A prévia anterior não pode mais ser confirmada. Calcule uma nova prévia.' :
+          'Preencha os dados do retorno e calcule a prévia para conferir os valores.'}</p>`;
+        return;
+      }
+      const p = preview;
+      const fuelDetail = `Gasolina · ${liters.format(Number(p.refill) / 1000)} L × ${money(p.fuelUnit)} por litro`;
+      const metrics = `${duration(p.days)} de 24 h · ${integer.format(p.km)} km rodados`;
+      box.innerHTML = `<p class="muted">${metrics}</p>
+        <dl>${row(`Plano ${plan}`,p.planDetail,money(p.planCents))}
+        ${row('Taxa de preparação','Taxa fixa contratada',money(3000n))}
+        ${p.extra ? row('Suporte de viagem',`Taxa incluída no retorno · ${duration(p.days)} × ${money(p.extraUnit)}`,money(p.extraCents)) : ''}
+        ${row('Seguro do cliente',`${duration(p.days)} × ${money(500n)}`,money(500n * BigInt(p.days)))}
+        ${row('Seguro de terceiros',`${duration(p.days)} × ${money(700n)}`,money(700n * BigInt(p.days)))}
+        ${row('Reposição de combustível',fuelDetail,money(p.fuelCents))}
+        ${p.late ? row('Multa por atraso','10% somente sobre o subtotal do plano',money(p.penalty)) : ''}</dl>
+        ${total(final ? 'Total final' : 'Total proposto',p.amount)}
+        ${final ? '' : `<button type="button" data-confirm ${uncertain ? 'disabled' : ''}>Confirmar devolução</button>`}`;
+      box.querySelector('[data-confirm]')?.addEventListener('click', confirmReturn);
+    }
+
+    function clearFeedback() {
+      by('error').hidden = true;
+      for (const id of ['returned','odometer','fuel']) {
+        by(id).removeAttribute('aria-invalid');
+        by(`${id}-error`).textContent = '';
+      }
+    }
+
+    function showError(title, text, action) {
+      by('error-title').textContent = title;
+      by('error-text').textContent = text;
+      by('recovery').hidden = !action;
+      by('reload').hidden = action !== 'reload';
+      by('retry').hidden = action !== 'retry';
+      by('error').hidden = false;
+      by('error').focus();
+    }
+
+    function localInstant(text) {
+      const m = /^(\d{2})\/(\d{2})\/(\d{4})\s+([01]\d|2[0-3]):([0-5]\d)(?:\s+([+-]\d{2}:\d{2}))?$/.exec(text.trim());
+      if (!m) return {error:'Informe dia/mês/ano e hora de 24 h.'};
+      const [,d,mon,y,h,min,offset] = m;
+      const iso = `${y}-${mon}-${d}T${h}:${min}:00`;
+      const center = Date.parse(`${iso}Z`);
+      if (!Number.isFinite(center) || new Date(center).toISOString().slice(0,16) !== iso.slice(0,16)) return {error:'Informe uma data válida.'};
+      const candidates = new Map();
+      for (const step of [-1,0,1]) {
+        const suffix = offsets.formatToParts(center + step * dayMs).find(p => p.type === 'timeZoneName').value.slice(3);
+        if (!/^[+-]\d{2}:\d{2}$/.test(suffix)) continue;
+        const time = Date.parse(iso + suffix);
+        const parts = Object.fromEntries(clock.formatToParts(time).map(p => [p.type,p.value]));
+        if (parts.day === d && parts.month === mon && parts.year === y && parts.hour === h && parts.minute === min) candidates.set(suffix,time);
+      }
+      if (!candidates.size) return {error:'Esse horário local não existe no fuso de São Paulo.'};
+      if (!offset && candidates.size > 1) return {error:`Esse horário se repete. Acrescente ${[...candidates.keys()].join(' ou ')} depois da hora.`};
+      const time = offset ? candidates.get(offset) : candidates.values().next().value;
+      return time === undefined ? {error:'O deslocamento informado não corresponde ao horário de São Paulo.'} : {time};
+    }
+
+    function collect() {
+      const errors = {};
+      const when = localInstant(by('returned').value);
+      if (when.error || when.time < start) errors.returned = when.error || 'O retorno real não pode ser anterior à saída.';
+      const rawKm = by('odometer').value.trim();
+      const km = Number(rawKm);
+      if (!/^\d+$/.test(rawKm) || !Number.isSafeInteger(km) || km < 21430) errors.odometer = 'Informe um hodômetro inteiro igual ou superior a 21.430 km.';
+      const rawFuel = by('fuel').value.trim();
+      const parts = /^(\d+)(?:[,.](\d{1,3}))?$/.exec(rawFuel);
+      const fuel = parts ? BigInt(parts[1]) * 1000n + BigInt((parts[2] ?? '').padEnd(3,'0')) : null;
+      if (fuel === null || fuel > capacity) errors.fuel = 'Informe entre 0 e 50 L, com até três casas decimais.';
+      return {errors, time:when.time, odometer:km, fuel, extra:by('support').checked};
+    }
+
+    function calculate(event) {
+      event.preventDefault();
+      if (uncertain || stale) return;
+      clearFeedback();
+      const input = collect();
+      if (Object.keys(input.errors).length) {
+        preview = null;
+        renderStatement();
+        for (const [id, message] of Object.entries(input.errors)) {
+          by(id).setAttribute('aria-invalid','true');
+          by(`${id}-error`).textContent = message;
+        }
+        showError('Revise os dados do retorno.', 'Os campos indicados precisam de correção. O aluguel continua em aberto.');
+        return;
+      }
+      // A later version exists in both fixtures, but cannot price this earlier return.
+      const versions = [
+        ...(mode !== 'preco-ausente' ? [{start:Date.parse('2026-11-23T00:00:00-03:00'),unit:600n}] : []),
+        {start:Date.parse('2026-11-25T00:00:00-03:00'),unit:675n}
+      ];
+      const fuelVersion = versions.filter(version => version.start <= input.time).at(-1);
+      if (!fuelVersion) {
+        preview = null;
+        renderStatement();
+        showError('Sem preço de combustível aplicável.', 'Não há preço de gasolina vigente na data e hora do retorno real. Confira a configuração em Preços. O veículo permanece ocupado.');
+        return;
+      }
+      const days = Math.max(1,Math.ceil((input.time - start) / dayMs));
+      const d = BigInt(days);
+      const km = input.odometer - 21430;
+      const allowance = plan === 'Controlado' ? days * 100 : 0;
+      const chargedKm = plan === 'Livre' ? 0 : Math.max(0,km - allowance);
+      const planCents = 10000n * d + 200n * BigInt(chargedKm);
+      const planDetail = `${duration(days)} × R$ 100,00` + (plan === 'Livre' ? ' · sem cobrança por km' :
+        plan === 'Controlado' ? ` · franquia de ${integer.format(allowance)} km · ${integer.format(chargedKm)} km excedentes × R$ 2,00` :
+        ` · ${integer.format(chargedKm)} km × R$ 2,00`);
+      const refill = capacity - input.fuel;
+      const fuelCents = (refill * fuelVersion.unit + 500n) / 1000n;
+      const late = input.time > due;
+      const penalty = late ? (planCents + 5n) / 10n : 0n;
+      const extraCents = input.extra ? d * rateCents : 0n;
+      const amount = planCents + 3000n + 1200n * d + fuelCents + penalty + extraCents;
+      preview = {...input,days,km,planCents,planDetail,refill,fuelCents,fuelUnit:fuelVersion.unit,late,penalty,extraCents,extraUnit:rateCents,amount};
+      changed = false;
+      renderStatement();
+      by('statement-title').focus();
+    }
+
+    function confirmReturn() {
+      if (!preview || uncertain || stale) return;
+      clearFeedback();
+      if (simulation === 'preco-alterado' && preview.extra) {
+        simulation = null; rateCents = 1200n; preview = null; changed = true;
+        render();
+        showError('O preço de uma taxa mudou.', 'Nenhum fechamento foi gravado. Calcule e aceite uma nova prévia com o preço atualizado.');
+      } else if (simulation === 'versao-desatualizada') {
+        simulation = null; preview = null; changed = true; stale = true;
+        render();
+        showError('O contrato foi revisado.', 'A devolução não foi gravada. Recarregue o contrato e confira os dados antes de calcular outra prévia.', 'reload');
+      } else if (simulation === 'resposta-incerta') {
+        simulation = null; retained = preview; uncertain = true;
+        render();
+        showError('Resultado da devolução não confirmado.', 'Repita o mesmo envio para recuperar o resultado, sem registrar outra devolução.', 'retry');
+      } else if (simulation === 'falha-gravacao') {
+        simulation = null;
+        render();
+        showError('Não foi possível gravar a devolução.', 'O aluguel continua em aberto e o veículo permanece ocupado. Os dados foram mantidos.');
+      } else {
+        showFinal(preview);
+      }
+    }
+
+    function showFinal(result) {
+      clearFeedback();
+      uncertain = false;
+      preview = result;
+      view = 'final';
+      by('final-data').innerHTML = `<div><dt>Retorno real</dt><dd>${displayClock(result.time)}</dd></div>
+        <div><dt>Hodômetro final</dt><dd>${integer.format(result.odometer)} km</dd></div>
+        <div><dt>Litros restantes</dt><dd>${liters.format(Number(result.fuel) / 1000)} L</dd></div>`;
+      render();
+      by('success').focus();
+    }
+
+    by('open-return').addEventListener('click', () => { view = 'return'; render(true); });
+    by('back').addEventListener('click', () => { clearFeedback(); view = 'contract'; render(true); });
+    form.addEventListener('submit', calculate);
+    form.addEventListener('input', () => {
+      clearFeedback();
+      if (preview) { preview = null; changed = true; renderStatement(); }
+    });
+    by('reload').addEventListener('click', () => {
+      clearFeedback(); stale = false; due += 15 * 60000; render();
+      by('returned').focus();
+    });
+    by('retry').addEventListener('click', () => { if (uncertain && retained) showFinal(retained); });
+    render();
+  </script>
+</body>
+</html>
