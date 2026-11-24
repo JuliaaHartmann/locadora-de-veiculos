@@ -60,7 +60,7 @@ async function jornada(contexto, extensao) {
   await page.getByRole('link', { name: 'Aluguéis', exact: true }).first().focus();
   await page.keyboard.press('Enter');
   await page.waitForURL(`${origem}/alugueis`);
-  await esperou(page, '#resultado-alugueis', 'Nenhum aluguel em aberto encontrado');
+  await esperou(page, '#resultado-alugueis', 'Nenhum aluguel encontrado');
 
   await btn(page, 'Nova contratação').click();
   await page.locator('#aluguel-cliente').selectOption(cliente.id);
@@ -148,9 +148,9 @@ async function jornada(contexto, extensao) {
   await page.setViewportSize({ width: 320, height: 780 });
   await verificarReflow();
   await btn(page, 'Voltar aos aluguéis').click();
-  await page.getByRole('region', { name: 'Tabela de aluguéis em aberto' }).waitFor();
+  await page.getByRole('region', { name: 'Tabela de aluguéis', exact: true }).waitFor();
   await verificarReflow();
-  await page.getByRole('region', { name: 'Tabela de aluguéis em aberto' }).focus();
+  await page.getByRole('region', { name: 'Tabela de aluguéis', exact: true }).focus();
   assert.ok(await page.evaluate(() => parseFloat(getComputedStyle(document.activeElement).outlineWidth) >= 2));
   if (extensao) {
     await page.setViewportSize({ width: 840, height: 900 });
