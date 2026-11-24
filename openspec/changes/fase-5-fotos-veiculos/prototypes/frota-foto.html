@@ -1,0 +1,473 @@
+<!doctype html>
+<!--
+  Source: ../proposal.md (What Changes), ../specs/grupos-planos-veiculos/spec.md, ../specs/fotos-veiculos/spec.md.
+  Style: Tailwind CSS 4.3.5 theme CSS excerpt from the official npm package (MIT), adapted app CSS inline.
+  Covered:
+    Cadastrar veículo / Salvar cadastro sem foto selecionada -> list and regular create without a photo request.
+    Não enviar foto quando o cadastro falha -> no photo request, preserved values, fixture falha-cadastro.
+    Enviar foto após cadastro confirmado -> create first, then simulate photo upload with returned ID/version.
+    Repetir só a foto após sucesso parcial -> distinct partial feedback, no create action, retry against the same ID/version; fixture falha-envio-cadastro.
+    Gerenciar foto de veículo existente na edição -> independent photo actions in the editor.
+    Visualizar a foto na listagem de veículos / Atualizar a miniatura após alterar a foto -> Foto column with accessible illustration or vehicle icon and text, also after editing and in grouped lists.
+    Carregar miniaturas privadas sem bloquear a lista -> only the visible loading/result states, with the list usable; no real network or browser storage.
+    Capacidade inválida / Placa já ativa na empresa / Editar dados do veículo -> editable fields and field errors, existing vehicle values and refreshed row.
+    Filtrar frota por grupo / Agrupar frota por grupo -> original controls, matching rows and group headings.
+    Consultar foto na edição do veículo -> loading, image with text alternative and no-photo placeholder.
+    Enviar a primeira foto ou substituir uma foto / Remover a foto ativa -> file selection, pending state, replace/remove feedback and the one active picture.
+    Rejeitar formato ou conteúdo inválido -> file errors, including review fixture imagem-corrompida.
+    Bloquear alterações com aluguel aberto / Edição ou exclusão bloqueada por aluguel aberto -> fixtures alugado and alugado-durante-envio.
+    Tratar versão desatualizada / Preservar estado em falha parcial e retomar compensação -> fixtures versao-desatualizada and falha-envio; only user-visible outcomes.
+    Informar falha de leitura sem bloquear o cadastro -> fixture falha-leitura, photo placeholder, usable vehicle form.
+    Operar e receber feedback por teclado -> labels, visible focus, input association, alerts and live announcements.
+  Not specified (presentational only): inert navigation outside Veículos, reviewer notice, fictional fixtures and inline vehicle illustrations.
+  Not simulated: server authorization, sanitization, audit, storage/compensation, earlier authorized deletions and separate rental flows; verified by implementation tests.
+  Open questions: none about layout or controls. Open file directly; no network, persistence or image-file decoding.
+-->
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+  <title>Frota · Foto do veículo | Protótipo</title>
+  <style>
+    /*! Tailwind CSS v4.3.5 | MIT License | Copyright (c) Tailwind Labs, Inc. | https://tailwindcss.com */
+    /*
+      Permission is hereby granted, free of charge, to any person obtaining a copy
+      of this software and associated documentation files (the "Software"), to deal
+      in the Software without restriction, including without limitation the rights
+      to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+      copies of the Software, and to permit persons to whom the Software is
+      furnished to do so, subject to the following conditions:
+      The above copyright notice and this permission notice shall be included in
+      all copies or substantial portions of the Software.
+      THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+      IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+      FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+      THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+      LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+      FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+      DEALINGS IN THE SOFTWARE.
+    */
+    :root {
+      --color-slate-50:oklch(98.4% 0.003 247.858); --color-slate-100:oklch(96.8% 0.007 247.896);
+      --color-slate-200:oklch(92.9% 0.013 255.508); --color-slate-300:oklch(86.9% 0.022 252.894);
+      --color-slate-500:oklch(55.4% 0.046 257.417); --color-slate-600:oklch(44.6% 0.043 257.281);
+      --color-slate-900:oklch(20.8% 0.042 265.755);
+      --color-blue-50:oklch(97% 0.014 254.604); --color-blue-700:oklch(48.8% 0.243 264.376);
+      --color-red-50:oklch(97.1% 0.013 17.38); --color-red-300:oklch(80.8% 0.114 19.571);
+      --color-red-800:oklch(44.4% 0.177 26.899); --color-white:#fff;
+      --font-sans:ui-sans-serif,system-ui,sans-serif;
+      --radius-md:.375rem; --radius-lg:.5rem; --radius-xl:.75rem;
+    }
+    *,*::before,*::after { box-sizing:border-box; }
+    [hidden] { display:none !important; }
+    body { margin:0; color:var(--color-slate-900); background:var(--color-slate-50); font:1rem/1.5 var(--font-sans); }
+    header.shell, main, .review { max-width:72rem; margin-inline:auto; }
+    header.shell { padding:.75rem 1rem 0; }
+    .shell nav { display:flex; flex-wrap:wrap; gap:1rem; border-bottom:1px solid var(--color-slate-300); padding:.5rem 0 .75rem; }
+    .shell nav span[aria-current] { color:var(--color-blue-700); font-weight:700; text-decoration:underline; text-underline-offset:.25rem; }
+    .review { padding:.5rem 1rem; font-size:.875rem; color:var(--color-slate-600); }
+    main { margin:0 auto 2rem; padding:1.5rem; border:1px solid var(--color-slate-300); border-radius:var(--radius-xl); background:white; }
+    h1,h2,h3,p { margin:0; }
+    h1 { font-size:1.5rem; }
+    h2 { font-size:1.25rem; }
+    h3 { font-size:1rem; }
+    .muted, .help { color:var(--color-slate-600); }
+    .small,.help { font-size:.875rem; }
+    .tabs,.row,.actions { display:flex; flex-wrap:wrap; align-items:center; gap:.75rem; }
+    .tabs { margin:1rem 0; }
+    .between { justify-content:space-between; }
+    .card { border:1px solid var(--color-slate-300); border-radius:var(--radius-xl); box-shadow:0 1px 2px #0f172a0d; min-width:0; }
+    .pad { padding:1rem; }
+    .rule { border-top:1px solid var(--color-slate-200); }
+    .stack > * + * { margin-top:.75rem; }
+    .edit-grid { display:grid; align-items:start; gap:1rem; grid-template-columns:minmax(0,1.4fr) minmax(17rem,1fr); }
+    .fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.875rem; }
+    .fields div { display:grid; align-content:start; gap:.25rem; min-width:0; }
+    .scroll { overflow:auto; }
+    table { width:100%; min-width:45rem; border-collapse:collapse; text-align:left; }
+    th,td { border-bottom:1px solid var(--color-slate-200); padding:.65rem .75rem; }
+    th { background:var(--color-slate-100); }
+    .group { font-weight:650; color:var(--color-slate-600); }
+    .thumbnail { display:grid; width:5.5rem; height:4rem; place-content:center; justify-items:center; gap:.125rem; overflow:hidden; text-align:center; border:1px solid var(--color-slate-300); border-radius:var(--radius-lg); background:var(--color-slate-50); color:var(--color-slate-600); font-size:.75rem; line-height:1rem; }
+    .thumbnail > svg { width:5.25rem; height:3.75rem; }
+    .thumbnail > svg[aria-hidden] { width:1.25rem; height:1.25rem; }
+    label { font-weight:600; }
+    input:not([type="checkbox"]):not([type="file"]),select { width:100%; min-width:0; border:1px solid var(--color-slate-500); border-radius:var(--radius-md); padding:.5rem .75rem; background:white; color:inherit; font:inherit; }
+    button,.button,.tabs span { display:inline-flex; align-items:center; justify-content:center; padding:.55rem .85rem; border:1px solid var(--color-blue-700); border-radius:var(--radius-md); background:var(--color-blue-700); color:white; font:inherit; font-weight:650; line-height:1.4; }
+    button,.button { cursor:pointer; }
+    .secondary,.tabs span:not([aria-current]) { background:white; color:var(--color-slate-900); border-color:var(--color-slate-500); }
+    button:disabled,.file-label:has(:disabled) { cursor:not-allowed; opacity:.65; }
+    :focus-visible,[tabindex="-1"]:focus,.file-label:has(:focus-visible) { outline:3px solid #1d4ed8; outline-offset:3px; }
+    .notice:not(:empty) { margin:.75rem 0; }
+    .alert { background:var(--color-red-50); border:1px solid var(--color-red-300); border-radius:var(--radius-lg); padding:.75rem; color:var(--color-red-800); }
+    .field-error { color:var(--color-red-800); font-size:.875rem; }
+    .well { border:1px solid var(--color-slate-300); border-radius:var(--radius-lg); min-height:9rem; background:var(--color-slate-50); display:grid; place-items:center; padding:.75rem; text-align:center; }
+    .well svg { width:100%; max-height:12rem; display:block; }
+    .file-label { position:relative; width:max-content; max-width:100%; }
+    .file-input { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+    .file-name { overflow-wrap:anywhere; }
+    @media (max-width:52rem) { .edit-grid { grid-template-columns:minmax(0,1fr); } }
+    @media (max-width:38rem) { main { margin-inline:.5rem; padding:1rem; } .fields { grid-template-columns:minmax(0,1fr); } }
+  </style>
+</head>
+<body>
+  <header class="shell">
+    <nav aria-label="Navegação principal"><span>Painel</span><span aria-current="page">Frota</span><span>Pessoas</span><span>Preços</span><span>Aluguéis</span><span>Sair</span></nav>
+  </header>
+  <p class="review">Protótipo para revisão · Dados fictícios · O arquivo escolhido não é lido, enviado nem exibido; a imagem mostrada é ilustrativa.</p>
+  <main>
+    <p class="small muted">Cadastros / Frota e preços</p>
+    <h1>Frota</h1>
+    <p class="muted">Prepare os grupos, as modalidades e os dados da frota.</p>
+    <nav class="tabs" aria-label="Cadastros da frota"><span>Grupos</span><span>Planos</span><span aria-current="page">Veículos</span></nav>
+    <p id="fleet-status" class="notice" role="status"></p>
+    <p id="fleet-error" class="alert notice" role="alert" tabindex="-1" hidden></p>
+    <section id="list" class="card" aria-labelledby="list-title">
+      <div class="pad row between">
+        <h2 id="list-title" tabindex="-1">Veículos cadastrados</h2>
+        <button id="new" type="button">Cadastrar</button>
+      </div>
+      <div class="pad rule row">
+        <label>Filtrar por grupo
+          <select id="filter"><option value="">Todos os grupos</option><option>Compactos</option><option>Utilitários</option></select>
+        </label>
+        <label class="row"><input id="group" type="checkbox"> Agrupar por grupo</label>
+      </div>
+      <div class="scroll rule" role="region" aria-label="Tabela de veículos" tabindex="0">
+        <table>
+          <thead><tr><th scope="col">Foto</th><th scope="col">ID</th><th scope="col">Placa</th><th scope="col">Marca / modelo</th><th scope="col">Cor</th><th scope="col">Combustível</th><th scope="col">Grupo</th><th scope="col">Ações</th></tr></thead>
+          <tbody id="vehicles"></tbody>
+        </table>
+      </div>
+    </section>
+    <section id="editor" class="stack" aria-labelledby="editor-title" hidden>
+      <div class="row between"><h2 id="editor-title" tabindex="-1">Editar veículo</h2><button id="back" class="secondary" type="button">Voltar aos veículos</button></div>
+      <div class="edit-grid">
+        <form id="vehicle" class="card pad stack" novalidate>
+          <h3>Dados do veículo</h3>
+          <p id="vehicle-error" class="alert" role="alert" tabindex="-1" hidden></p>
+          <div class="fields">
+            <div><label for="group-field">Grupo</label><select name="group" id="group-field" required><option value="">Selecione</option><option>Compactos</option><option>Utilitários</option></select></div>
+            <div><label for="plate">Placa</label><input id="plate" name="plate" required aria-describedby="plate-error"><small id="plate-error" class="field-error"></small></div>
+            <div><label for="brand">Marca</label><input id="brand" name="brand" required></div>
+            <div><label for="model">Modelo</label><input id="model" name="model" required></div>
+            <div><label for="color">Cor</label><input id="color" name="color" required></div>
+            <div><label for="fuel">Combustível</label><select id="fuel" name="fuel" required><option value="">Selecione</option><option>Gasolina</option><option>Gás</option><option>Diesel</option><option>Álcool</option></select></div>
+            <div><label for="capacity">Capacidade (litros)</label><input id="capacity" name="capacity" inputmode="decimal" aria-describedby="capacity-error" required><small id="capacity-error" class="field-error"></small></div>
+            <div><label for="year">Ano</label><input id="year" name="year" inputmode="numeric" required></div>
+          </div>
+          <button id="save-vehicle" type="submit">Salvar</button>
+        </form>
+        <section class="card pad stack" aria-labelledby="photo-title">
+          <h3 id="photo-title" tabindex="-1">Foto do veículo <span class="small muted">· Opcional</span></h3>
+          <p id="save-first" class="muted">Se você selecionar uma foto, ela será enviada depois que o veículo for cadastrado.</p>
+          <div id="photo" class="stack">
+            <div id="photo-display" class="well" hidden>
+              <p id="photo-empty" role="status"></p>
+              <svg id="art" viewBox="0 0 360 162" role="img" aria-label="Ilustração da foto do veículo fictício" hidden>
+                <rect width="360" height="162" rx="12" fill="#dbeafe"/>
+                <path d="M0 119h360v43H0z" fill="#cbd5e1"/>
+                <path id="car-body" d="M70 102l12-23 42-9 23-30h70l39 31 31 8 15 17v20H70z" fill="#64748b" stroke="#334155" stroke-width="3"/>
+                <path d="M134 71l18-23h60l28 23z" fill="#eff6ff" stroke="#334155" stroke-width="3"/>
+                <circle cx="118" cy="113" r="18" fill="#0f172a"/><circle cx="118" cy="113" r="8" fill="#e2e8f0"/>
+                <circle cx="257" cy="113" r="18" fill="#0f172a"/><circle cx="257" cy="113" r="8" fill="#e2e8f0"/>
+              </svg>
+            </div>
+            <p id="photo-status" role="status"></p>
+            <p id="photo-error" class="alert" role="alert" tabindex="-1" hidden></p>
+            <p id="photo-help" class="help">JPEG ou PNG estático, até 16 megapixels. O envio completo, com o arquivo, não pode passar de 5 MiB.</p>
+            <label class="button secondary file-label">Selecionar arquivo
+              <input class="file-input" id="file" type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" aria-describedby="photo-help">
+            </label>
+            <p id="file-state" class="small muted file-name" role="status">Nenhum arquivo selecionado.</p>
+            <div class="actions">
+              <button id="upload" type="button" disabled>Enviar foto</button>
+              <button id="remove" class="secondary" type="button" hidden>Remover foto</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+    <template id="thumbnail-placeholder">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m5 10 1.5-4.5h11L19 10M5 10h14l1.5 2v5.5h-17V12L5 10Zm0 7.5V20m14-2.5V20M7 14h2m6 0h2"/>
+      </svg>
+      <span>Carregando…</span>
+    </template>
+  </main>
+  <script>
+    'use strict';
+    const byId = id => document.getElementById(id);
+    const form = byId('vehicle');
+    const file = byId('file');
+    const scenario = new URLSearchParams(location.search).get('cenario');
+    const fields = ['group', 'plate', 'brand', 'model', 'color', 'fuel', 'capacity', 'year'];
+    const vehicleList = [
+      { id:'VEÍCULO-01', etag:'"versao-1"', group:'Compactos', plate:'FICTÍCIO01', brand:'Aurora', model:'Lume', color:'Prata', fuel:'Gasolina', capacity:'50', year:'2026', photo:1 },
+      { id:'VEÍCULO-02', etag:'"versao-1"', group:'Utilitários', plate:'FICTÍCIO02', brand:'Aurora', model:'Trilha', color:'Azul', fuel:'Diesel', capacity:'62', year:'2026', photo:0 },
+    ];
+    let editing = null, busy = false, loading = false, sequence = 0;
+    let creating = false, fromCreation = false, createFailureUsed = false, uploadFailureUsed = false;
+    const pause = ms => new Promise(finish => setTimeout(finish, ms));
+    const fleetMessage = text => { byId('fleet-status').textContent = text; };
+    const photoMessage = text => { byId('photo-status').textContent = text; };
+
+    function cell(row, value) { row.insertCell().textContent = value; }
+    function addThumbnail(row, vehicle) {
+      const box = document.createElement('div');
+      box.className = 'thumbnail';
+      box.append(byId('thumbnail-placeholder').content.cloneNode(true));
+      row.insertCell().append(box);
+      setTimeout(() => {
+        if (!box.isConnected) return;
+        const unavailable = vehicle === vehicleList[0] && scenario === 'falha-leitura' && vehicle.photo;
+        if (unavailable || !vehicle.photo) {
+          box.querySelector('span').textContent = unavailable ? 'Foto indisponível' : 'Sem foto';
+          return;
+        }
+        const image = byId('art').cloneNode(true);
+        image.removeAttribute('id');
+        image.removeAttribute('hidden');
+        image.setAttribute('aria-label', `Foto do veículo ${vehicle.plate}`);
+        const car = image.querySelector('#car-body');
+        car.removeAttribute('id');
+        car.setAttribute('fill', vehicle.photo === 2 ? '#2563eb' : '#64748b');
+        box.replaceChildren(image);
+      }, 320);
+    }
+    function renderList() {
+      const body = byId('vehicles');
+      const filter = byId('filter').value;
+      const grouped = byId('group').checked;
+      const rows = vehicleList.filter(vehicle => !filter || vehicle.group === filter);
+      if (grouped) rows.sort((a, b) => a.group.localeCompare(b.group, 'pt-BR'));
+      body.replaceChildren();
+      let group = '';
+      for (const vehicle of rows) {
+        if (grouped && group !== vehicle.group) {
+          group = vehicle.group;
+          const header = document.createElement('th');
+          header.colSpan = 8;
+          header.scope = 'rowgroup';
+          header.className = 'group';
+          header.textContent = group;
+          body.insertRow().append(header);
+        }
+        const row = body.insertRow();
+        addThumbnail(row, vehicle);
+        [vehicle.id, vehicle.plate, `${vehicle.brand} / ${vehicle.model}`, vehicle.color, vehicle.fuel, vehicle.group].forEach(value => cell(row, value));
+        const edit = document.createElement('button');
+        edit.type = 'button';
+        edit.textContent = 'Editar';
+        edit.setAttribute('aria-label', `Editar veículo ${vehicle.plate}`);
+        edit.addEventListener('click', () => openEditor(vehicle));
+        row.insertCell().append(edit);
+      }
+    }
+
+    function setError(id, text, focus = false) {
+      const error = byId(id);
+      error.textContent = text;
+      error.hidden = !text;
+      if (text && focus) error.focus();
+    }
+    function clearFieldErrors() {
+      for (const id of ['plate', 'capacity']) {
+        byId(id).removeAttribute('aria-invalid');
+        byId(`${id}-error`).textContent = '';
+      }
+      setError('vehicle-error', '');
+    }
+    function photoError(text = '', field = false, focus = true) {
+      file.setAttribute('aria-describedby', field ? 'photo-help photo-error' : 'photo-help');
+      if (field) file.setAttribute('aria-invalid', 'true'); else file.removeAttribute('aria-invalid');
+      setError('photo-error', text, focus);
+    }
+    function syncPhoto() {
+      byId('save-first').hidden = !!editing;
+      byId('photo-display').hidden = !editing;
+      byId('save-vehicle').hidden = fromCreation;
+      byId('save-vehicle').disabled = creating || busy;
+      byId('save-vehicle').textContent = creating ? 'Salvando veículo…' : 'Salvar';
+      byId('back').disabled = creating || (fromCreation && busy);
+      for (const key of fields) form.elements.namedItem(key).disabled = creating || fromCreation;
+      const unavailable = editing === vehicleList[0] && scenario === 'falha-leitura';
+      const image = !loading && !!editing?.photo && !unavailable;
+      byId('art').toggleAttribute('hidden', !image);
+      byId('car-body').setAttribute('fill', editing?.photo === 2 ? '#2563eb' : '#64748b');
+      byId('photo-empty').hidden = image;
+      byId('photo-empty').textContent = loading ? 'Carregando foto…'
+        : unavailable && editing?.photo ? 'Foto temporariamente indisponível.' : 'Veículo sem foto.';
+      file.disabled = creating || busy || loading;
+      byId('upload').hidden = !editing;
+      byId('upload').disabled = file.disabled || !file.files.length;
+      byId('upload').textContent = busy ? 'Processando…' : fromCreation ? 'Tentar enviar a foto novamente' : editing?.photo ? 'Substituir foto' : 'Enviar foto';
+      byId('remove').hidden = !editing?.photo;
+      byId('remove').disabled = file.disabled;
+      byId('file-state').textContent = file.files.length ? 'Um arquivo selecionado.' : 'Nenhum arquivo selecionado.';
+    }
+    function openEditor(vehicle) {
+      setError('fleet-error', '');
+      if (vehicle === vehicleList[0] && scenario === 'alugado') {
+        setError('fleet-error', 'Não é possível editar o veículo ou alterar a foto enquanto houver um aluguel em aberto.', true);
+        return;
+      }
+      editing = vehicle;
+      const request = ++sequence;
+      busy = false;
+      creating = false;
+      fromCreation = false;
+      loading = !!vehicle;
+      form.reset();
+      for (const key of fields) form.elements.namedItem(key).value = vehicle?.[key] ?? '';
+      file.value = '';
+      clearFieldErrors();
+      photoError();
+      photoMessage('');
+      byId('editor-title').textContent = vehicle ? 'Editar veículo' : 'Cadastrar veículo';
+      byId('list').hidden = true;
+      byId('editor').hidden = false;
+      byId('editor-title').focus();
+      fleetMessage('');
+      syncPhoto();
+      if (loading) setTimeout(() => {
+        if (sequence === request) { loading = false; syncPhoto(); }
+      }, 250);
+    }
+    function showList(message = '') {
+      sequence++;
+      editing = null;
+      byId('editor').hidden = true;
+      byId('list').hidden = false;
+      renderList();
+      fleetMessage(message);
+      byId('list-title').focus();
+    }
+
+    async function simulateCreate(data) {
+      await pause(300);
+      if (scenario === 'falha-cadastro' && !createFailureUsed) {
+        createFailureUsed = true;
+        return null;
+      }
+      const vehicle = { ...data, id:`VEÍCULO-${String(vehicleList.length + 1).padStart(2, '0')}`, etag:'"versao-1"', photo:0 };
+      vehicleList.push(vehicle);
+      return { id:vehicle.id, etag:vehicle.etag };
+    }
+
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (creating || busy || fromCreation) return;
+      clearFieldErrors();
+      const data = Object.fromEntries(fields.map(key => [key, form.elements.namedItem(key).value.trim()]));
+      const plate = data.plate.toLocaleUpperCase('pt-BR').replace(/[^\p{L}\p{N}]/gu, '');
+      const repeated = vehicleList.some(vehicle => vehicle !== editing && vehicle.plate === plate);
+      const capacity = data.capacity.replace(',', '.');
+      const badCapacity = !/^\d{1,9}(\.\d{1,3})?$/.test(capacity) || Number(capacity) <= 0;
+      if (badCapacity) {
+        byId('capacity').setAttribute('aria-invalid', 'true');
+        byId('capacity-error').textContent = 'Informe capacidade positiva com até 3 casas.';
+      }
+      if (repeated) {
+        byId('plate').setAttribute('aria-invalid', 'true');
+        byId('plate-error').textContent = 'Esta placa já está em uso.';
+      }
+      if (repeated || badCapacity || Object.values(data).some(value => !value) || !plate || !/^\d+$/.test(data.year)) {
+        setError('vehicle-error', 'Revise os dados obrigatórios e corrija os campos indicados.', true);
+        return;
+      }
+      data.plate = plate;
+      if (editing) {
+        Object.assign(editing, data);
+        showList('Dados do veículo salvos.');
+        return;
+      }
+      const selected = file.files[0];
+      const request = sequence;
+      creating = true;
+      syncPhoto();
+      fleetMessage('Salvando veículo…');
+      const created = await simulateCreate(data);
+      if (sequence !== request) return;
+      creating = false;
+      syncPhoto();
+      if (!created) {
+        fleetMessage('');
+        setError('vehicle-error', selected
+          ? 'Não foi possível cadastrar o veículo. A foto não foi enviada.'
+          : 'Não foi possível cadastrar o veículo. Tente novamente.', true);
+        return;
+      }
+      if (!selected) {
+        showList('Veículo cadastrado sem foto.');
+        return;
+      }
+      editing = vehicleList.find(vehicle => vehicle.id === created.id);
+      fromCreation = true;
+      byId('editor-title').textContent = 'Veículo cadastrado';
+      fleetMessage('Veículo cadastrado.');
+      await changePhoto(false, created, selected, true);
+    });
+
+    file.addEventListener('change', () => { photoError(); photoMessage(''); syncPhoto(); });
+    async function changePhoto(removing, target = editing, selected = file.files[0], firstAfterCreate = false) {
+      if (!editing || busy || loading) return;
+      if ((!removing && !selected) || (removing && !editing.photo)) return;
+      const partial = 'O veículo foi cadastrado, mas não foi possível salvar a foto. Tente novamente apenas o envio da foto.';
+      photoError();
+      photoMessage('');
+      if (!removing && (selected.size === 0 || selected.size >= 5 * 1024 * 1024 ||
+        (selected.type && !/^(image\/jpeg|image\/png)$/.test(selected.type)) || scenario === 'imagem-corrompida')) {
+        syncPhoto();
+        photoError(`${fromCreation ? partial + ' ' : ''}Selecione outro JPEG ou PNG estático dentro dos limites informados.`, true);
+        return;
+      }
+      const request = sequence;
+      const id = target.id;
+      const etag = target.etag;
+      busy = true;
+      syncPhoto();
+      photoMessage(removing ? 'Removendo foto…' : 'Enviando foto…');
+      await pause(450);
+      if (sequence !== request || !editing) return;
+      busy = false;
+      syncPhoto();
+      photoMessage('');
+      if (editing.id !== id || editing.etag !== etag || scenario === 'versao-desatualizada') {
+        photoError(`${fromCreation ? 'O veículo foi cadastrado, mas a foto não foi enviada. ' : ''}O cadastro do veículo mudou. Consulte a versão atual antes de tentar novamente.`);
+      } else if (!removing && scenario === 'alugado-durante-envio') {
+        photoError(`${fromCreation ? 'O veículo foi cadastrado. ' : ''}O veículo foi alugado durante o envio. A nova foto não foi ativada.`);
+      } else if (firstAfterCreate && scenario === 'falha-envio-cadastro' && !uploadFailureUsed) {
+        uploadFailureUsed = true;
+        photoError(partial);
+      } else if (!removing && scenario === 'falha-envio') {
+        photoError(fromCreation ? partial : 'Não foi possível salvar a nova foto. A foto anterior, se houver, foi preservada.');
+      } else {
+        const replacing = !!editing.photo;
+        editing.photo = removing ? 0 : editing.photo === 2 ? 1 : 2;
+        editing.etag = `"versao-${Number(editing.etag.match(/\d+/)[0]) + 1}"`;
+        file.value = '';
+        if (fromCreation) {
+          showList('Veículo cadastrado e foto salva.');
+          return;
+        }
+        syncPhoto();
+        photoMessage(removing ? 'Foto removida.' : replacing ? 'Foto substituída.' : 'Foto adicionada.');
+        byId('photo-title').focus();
+      }
+    }
+
+    byId('filter').addEventListener('change', renderList);
+    byId('group').addEventListener('change', renderList);
+    byId('new').addEventListener('click', () => openEditor(null));
+    byId('back').addEventListener('click', () => showList());
+    byId('upload').addEventListener('click', () => changePhoto(false));
+    byId('remove').addEventListener('click', () => changePhoto(true));
+    renderList();
+    if (scenario === 'falha-cadastro' || scenario === 'falha-envio-cadastro') openEditor(null);
+    else if (scenario && scenario !== 'falha-leitura') openEditor(vehicleList[0]);
+  </script>
+</body>
+</html>
