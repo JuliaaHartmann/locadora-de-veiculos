@@ -51,6 +51,7 @@ internal static class ContratosOpenApi
             var previa = rota.EndsWith("/estimativas", StringComparison.Ordinal);
             var concluir = locacao && rota.EndsWith("/devolucao", StringComparison.Ordinal);
             var ocultar = locacao && context.Description.HttpMethod == "DELETE";
+            var foto = rota.EndsWith("/foto", StringComparison.Ordinal);
             foreach (var (codigo, descricao) in new[]
             {
                 ("400", "Dados inválidos; errors associa mensagens aos campos."),
@@ -61,9 +62,13 @@ internal static class ContratosOpenApi
                 ("412", "Versão divergente; recarregue para reavaliar, sem repetição automática."),
                 ("428", "If-Match obrigatório na escrita condicional."),
                 ("503", concluir ? "Dependência indisponível ou devolução comprovadamente não gravada (devolucao_nao_gravada)." :
-                    "Dependência SQL indisponível."),
+                    foto ? "Imagem, processamento ou armazenamento indisponível; foto_nao_gravada indica falha confirmada antes da ativação." : "Dependência SQL indisponível."),
+                ("413", "Corpo multipart completo acima de 5 MiB."),
+                ("415", "Tipo de mídia não aceito."),
             })
             {
+                if ((codigo is "413" or "415") && (!foto || context.Description.HttpMethod != "PUT")) continue;
+                if (foto && context.Description.HttpMethod == "GET" && codigo is ("400" or "409" or "412" or "428")) continue;
                 if (locacao && (((codigo is "412" or "428") && context.Description.HttpMethod is not ("PUT" or "DELETE") && !concluir) ||
                     ((codigo is "404" or "409") && rota == "api/v1/alugueis" && context.Description.HttpMethod == "GET")))
                     continue;
@@ -82,6 +87,41 @@ internal static class ContratosOpenApi
                 operation.Description += " Replay da mesma intenção retorna o resultado e ETag gravados antes de verificar a revisão atual.";
             if (ocultar)
                 operation.Description += " Oculta somente concluídos; preserva o contrato, o demonstrativo e a disponibilidade.";
+            if (foto && context.Description.HttpMethod == "PUT")
+            {
+                operation.Description += " JPEG ou PNG estático, no máximo 16 milhões de pixels. O limite de 5 MiB inclui o multipart inteiro.";
+                operation.RequestBody = new OpenApiRequestBody
+                {
+                    Required = true,
+                    Content = new Dictionary<string, OpenApiMediaType>
+                    {
+                        ["multipart/form-data"] = new()
+                        {
+                            Schema = new OpenApiSchema
+                            {
+                                Type = JsonSchemaType.Object,
+                                Required = new HashSet<string> { "arquivo" },
+                                Properties = new Dictionary<string, IOpenApiSchema>
+                                {
+                                    ["arquivo"] = new OpenApiSchema { Type = JsonSchemaType.String, Format = "binary" },
+                                },
+                            },
+                        },
+                    },
+                };
+            }
+            if (foto && context.Description.HttpMethod == "GET" && operation.Responses!["200"] is OpenApiResponse leitura)
+            {
+                leitura.Content = new[] { "image/jpeg", "image/png" }.ToDictionary(x => x, _ => new OpenApiMediaType
+                {
+                    Schema = new OpenApiSchema { Type = JsonSchemaType.String, Format = "binary" },
+                });
+                leitura.Headers = new Dictionary<string, IOpenApiHeader>
+                {
+                    ["Cache-Control"] = new OpenApiHeader { Description = "private, no-store", Schema = new OpenApiSchema { Type = JsonSchemaType.String } },
+                    ["X-Content-Type-Options"] = new OpenApiHeader { Description = "nosniff", Schema = new OpenApiSchema { Type = JsonSchemaType.String } },
+                };
+            }
             foreach (var parametro in (operation.Parameters ?? []).OfType<OpenApiParameter>())
             {
                 if (parametro.Name == "If-Match")
@@ -103,9 +143,10 @@ internal static class ContratosOpenApi
                 if (locacao && parametro.Name == "incluirOcultos")
                     parametro.Description = "Padrão falso. true inclui concluídos ocultos da empresa na consulta.";
             }
-            foreach (var resposta in operation.Responses!.Where(x => x.Key is "200" or "201"))
+            foreach (var resposta in operation.Responses!.Where(x => x.Key is "200" or "201" || (foto && x.Key == "204")))
             {
                 if (resposta.Value is not OpenApiResponse dadosResposta) continue;
+                if (foto && context.Description.HttpMethod == "GET") continue;
                 if (locacao && previa) continue;
                 if (context.Description.HttpMethod == "GET" &&
                     !rota.Contains("{id}") && !rota.Contains("{tipo}")) continue;

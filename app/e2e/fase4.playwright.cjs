@@ -86,6 +86,8 @@ async function prepararCadastros(p, origem, placa) {
   const [pl] = await Promise.all([resposta(p, '/planos', 'POST', 201), acionar(btn(p, 'Salvar'))]);
   const plano = await pl.json();
   await acionar(btn(p, 'Veículos')); await acionar(btn(p, 'Cadastrar'));
+  await p.waitForFunction(() => document.activeElement?.matches('h2[tabindex="-1"]') &&
+    document.activeElement.textContent.includes('Cadastrar'));
   await label(p, 'Grupo').locator(`option[value="${grupo.id}"]`).waitFor({ state: 'attached' });
   await selecionar(label(p, 'Grupo'), grupo.id);
   for (const [campo, valor] of [['Placa', placa], ['Marca', 'Aurora'], ['Modelo', 'Lume'], ['Cor', 'Prata'],

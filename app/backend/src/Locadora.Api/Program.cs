@@ -3,6 +3,7 @@ using System.Threading.RateLimiting;
 using Locadora.Application;
 using Locadora.Domain;
 using Locadora.Infrastructure;
+using Locadora.Api;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Identity;
@@ -47,6 +48,7 @@ builder.Services.AddScoped<ISeguroService, SeguroService>();
 builder.Services.AddScoped<ICombustivelService, CombustivelService>();
 builder.Services.AddScoped<IRepositorioAlugueis, RepositorioAlugueis>();
 builder.Services.AddScoped<AluguelService>();
+builder.AdicionarFotos();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
 {
     options.MapInboundClaims = false;
@@ -185,6 +187,22 @@ app.UseExceptionHandler(handler => handler.Run(async context =>
             await ErrosHttp.Escrever(context, 503, "Devolução não gravada", detalhe: falhaDevolucao.Message,
                 codigo: "devolucao_nao_gravada");
             return;
+        case FalhaFotoException foto:
+            var (statusFoto, codigoFoto) = foto.Tipo switch
+            {
+                TipoFalhaFoto.LimiteCorpo => (413, "foto_corpo_excedido"),
+                TipoFalhaFoto.Formato => (415, "foto_formato_invalido"),
+                TipoFalhaFoto.NaoGravada => (503, "foto_nao_gravada"),
+                TipoFalhaFoto.Processamento => (503, "foto_processamento_indisponivel"),
+                _ => (503, "foto_indisponivel"),
+            };
+            await ErrosHttp.Escrever(context, statusFoto, erros: foto.Campo is null
+                ? null : new Dictionary<string, string[]> { [foto.Campo] = [foto.Message] },
+                detalhe: foto.Message, codigo: codigoFoto);
+            return;
+        case BadHttpRequestException requisicao when requisicao.StatusCode == 413:
+            await ErrosHttp.Escrever(context, 413, "Corpo da requisição excedido", codigo: "corpo_excedido");
+            return;
         case DbUpdateConcurrencyException:
             await ErrosHttp.Escrever(context, 412, "Precondição falhou",
                 null, "O cadastro foi alterado por outra operação. Recarregue e tente novamente.");
@@ -238,8 +256,8 @@ internal static class ErrosHttp
 
     public static void Completar(ProblemDetails problema, HttpContext context)
     {
-        problema.Extensions["traceId"] = context.TraceIdentifier;
-        problema.Extensions["code"] = Codigo(problema.Status ?? context.Response.StatusCode);
+        problema.Extensions.TryAdd("traceId", context.TraceIdentifier);
+        problema.Extensions.TryAdd("code", Codigo(problema.Status ?? context.Response.StatusCode));
     }
 
     public static Task Escrever(HttpContext context, int status, string? titulo = null,

@@ -281,7 +281,7 @@ public sealed class ContratosF2Tests
     }
 
     [TestMethod]
-    public async Task Openapi_documenta_schemas_decimais_paginacao_etag_e_erros_sem_fotos()
+    public async Task Openapi_preserva_schemas_decimais_paginacao_etag_e_criacao_sem_arquivo()
     {
         using var fabrica = new SqlServerWebApplicationFactory();
         using var cliente = fabrica.CreateClient();
@@ -289,7 +289,9 @@ public sealed class ContratosF2Tests
         Assert.AreEqual(HttpStatusCode.OK, resposta.StatusCode);
         var documento = await resposta.Content.ReadFromJsonAsync<JsonElement>();
         var caminhos = documento.GetProperty("paths");
-        Assert.IsFalse(caminhos.EnumerateObject().Any(x => x.Name.Contains("foto")));
+        var criarVeiculo = caminhos.GetProperty("/api/v1/veiculos").GetProperty("post")
+            .GetProperty("requestBody").GetProperty("content");
+        Assert.IsFalse(criarVeiculo.TryGetProperty("multipart/form-data", out _));
         var detalhe = caminhos.GetProperty("/api/v1/veiculos/{id}").GetProperty("get");
         Assert.IsTrue(detalhe.GetProperty("responses").GetProperty("200").GetProperty("headers")
             .TryGetProperty("ETag", out _));
