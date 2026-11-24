@@ -1,0 +1,374 @@
+<!doctype html>
+<!--
+  High-fidelity prototype — J-05
+  Source: ../proposal.md (What Changes), ../specs/alugueis/spec.md
+  Style: Tailwind CSS 4.3.5 theme CSS excerpt inlined from the official npm release (MIT); app styles and native controls adapted inline.
+  Covered:
+    RF-16 / Scenario: Listar e consultar contrato -> paginated table, status/vehicle/date filters, open contract and final details with different amounts.
+    RNF-04 / Scenario: Exibir estados acessíveis da consulta e dos formulários -> loading, empty, retry, focus and live status.
+    RNF-07 / Scenario: Cadastro alterado não reescreve o contrato -> read-only fictional snapshot and stored figures.
+    RF-19 / Scenario: Ocultar aluguel concluído da operação -> result, list removal and preserved statement.
+    RF-19 / Scenario: Consultar registros ocultos explicitamente -> explicit filter, badges and historic detail.
+    RF-19 / Scenario: Restringir exclusão, edição e reabertura -> no hide action on open/hidden, no edit/return on completed, stale feedback.
+  Not specified (presentational only): existing inert navigation, local reviewer banner and URL fixtures. Existing F3 write flows are not simulated here; the return action is exercised in devolucao.html.
+  Open questions: none for this prototype.
+  Open directly from disk (file://). Fictional data, no network or storage.
+-->
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+  <title>Protótipo de histórico | Aluguéis</title>
+  <style>
+    /*! Tailwind CSS v4.3.5 | MIT License | Copyright (c) Tailwind Labs, Inc. | https://tailwindcss.com */
+    /*
+      Permission is hereby granted, free of charge, to any person obtaining a copy
+      of this software and associated documentation files (the "Software"), to deal
+      in the Software without restriction, including without limitation the rights
+      to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+      copies of the Software, and to permit persons to whom the Software is
+      furnished to do so, subject to the following conditions:
+
+      The above copyright notice and this permission notice shall be included in all
+      copies or substantial portions of the Software.
+
+      THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+      IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+      FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+      AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+      LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+      OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+      SOFTWARE.
+    */
+    /* Theme tokens from package/theme.css, used as regular custom properties. */
+    :root {
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+      --color-slate-50: oklch(98.4% 0.003 247.858); --color-slate-100: oklch(96.8% 0.007 247.896);
+      --color-slate-200: oklch(92.9% 0.013 255.508); --color-slate-300: oklch(86.9% 0.022 252.894);
+      --color-slate-500: oklch(55.4% 0.046 257.281); --color-slate-600: oklch(44.6% 0.043 257.281);
+      --color-slate-900: oklch(20.8% 0.042 265.755); --color-white:#fff;
+      --color-blue-50: oklch(97% 0.014 254.604); --color-blue-200: oklch(88.2% 0.059 254.128);
+      --color-blue-700: oklch(48.8% 0.243 264.376); --color-blue-800: oklch(42.4% 0.199 265.638);
+      --color-red-50: oklch(97.1% 0.013 17.38); --color-red-300: oklch(80.8% 0.114 19.571);
+      --color-red-800: oklch(44.4% 0.177 26.899);
+      --color-emerald-50: oklch(97.9% 0.021 166.113); --color-emerald-200: oklch(90.5% 0.093 164.15);
+      --color-emerald-800: oklch(43.2% 0.095 166.913);
+      --spacing:0.25rem; --radius-md:0.375rem; --radius-lg:0.5rem; --radius-xl:0.75rem;
+    }
+    *,*::before,*::after { box-sizing:border-box; }
+    [hidden] { display:none !important; }
+    body { margin:0; background:var(--color-slate-50); color:var(--color-slate-900); font:1rem/1.5 var(--font-sans); }
+    h1,h2,h3,p,dl,dd { margin:0; }
+    h1 { font-size:1.65rem; line-height:1.2; letter-spacing:-.024em; }
+    h2 { font-size:1.125rem; line-height:1.35; }
+    small,.muted { color:var(--color-slate-600); font-size:.875rem; }
+    .wrap { width:min(72rem,calc(100% - 2rem)); margin-inline:auto; }
+    .review { padding:.4rem 0; background:var(--color-slate-100); color:var(--color-slate-600); font-size:.8125rem; }
+    .bar { background:white; border-bottom:1px solid var(--color-slate-200); }
+    nav { display:flex; flex-wrap:wrap; gap:.25rem 1.25rem; padding:.85rem 0; font-size:.9rem; font-weight:500; color:var(--color-slate-600); }
+    nav [aria-current] { color:var(--color-blue-800); font-weight:700; }
+    .skip { position:absolute; left:1rem; top:.5rem; z-index:2; padding:.5rem; background:white; color:var(--color-blue-800); }
+    .skip:not(:focus) { clip-path:inset(50%); }
+    :focus-visible,[tabindex="-1"]:focus { outline:3px solid var(--color-blue-700); outline-offset:3px; }
+    main { padding-block:clamp(1.35rem,3vw,2.3rem) 3rem; }
+    .hero,.split,.actions { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:.65rem; }
+    .hero { margin-bottom:1.15rem; }
+    .hero h1 { margin:.25rem 0; }
+    .actions { justify-content:flex-start; }
+    .card { min-width:0; background:white; border:1px solid var(--color-slate-300); border-radius:var(--radius-xl); box-shadow:0 1px 2px rgb(15 23 42 / .06); }
+    .pad,.head { padding:1rem; }
+    .head { border-bottom:1px solid var(--color-slate-200); }
+    .head p { margin-top:.25rem; }
+    .stack,.columns,.data,.filters { display:grid; gap:1rem; }
+    .columns { align-items:start; }
+    .filters { margin:0; padding:1rem; background:var(--color-slate-50); border-bottom:1px solid var(--color-slate-200); gap:.75rem; }
+    .filter-fields,.data { display:grid; gap:.75rem 1rem; grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .data dt { color:var(--color-slate-600); font-size:.85rem; font-weight:600; }
+    .data dd { overflow-wrap:anywhere; }
+    .field { display:grid; align-content:start; min-width:0; gap:.22rem; }
+    label { font-weight:500; }
+    input:not([type=checkbox]),select { width:100%; min-height:2.72rem; border:1px solid var(--color-slate-500); border-radius:var(--radius-md); background:white; padding:.48rem .65rem; color:inherit; font:inherit; }
+    [aria-invalid="true"] { border-color:var(--color-red-800) !important; }
+    .field-error { color:var(--color-red-800); }
+    .check { display:flex; align-items:flex-start; gap:.45rem; }
+    .check input { width:1.2rem; height:1.2rem; flex:none; margin:.15rem 0 0; accent-color:var(--color-blue-700); }
+    button { min-height:2.55rem; border:1px solid transparent; border-radius:var(--radius-md); background:var(--color-blue-700); color:white; font:600 .94rem/1.3 var(--font-sans); padding:.55rem .8rem; cursor:pointer; }
+    button:hover:not(:disabled) { background:var(--color-blue-800); }
+    button.secondary { background:white; border-color:var(--color-slate-500); color:var(--color-slate-900); }
+    button.secondary:hover:not(:disabled) { background:var(--color-slate-100); }
+    button:disabled { background:var(--color-slate-100); color:var(--color-slate-600); border-color:var(--color-slate-300); cursor:not-allowed; }
+    .scroll { overflow:auto; outline-offset:-3px; }
+    table { width:100%; min-width:61rem; border-collapse:collapse; text-align:left; }
+    td,th { border-bottom:1px solid var(--color-slate-200); padding:.8rem .7rem; vertical-align:middle; }
+    thead th { background:var(--color-slate-100); font-size:.85rem; white-space:nowrap; }
+    tbody tr:hover { background:var(--color-slate-50); }
+    tbody th,.money { font-variant-numeric:tabular-nums; white-space:nowrap; }
+    tbody small,.line small { display:block; }
+    .badge { display:inline-block; border:1px solid var(--color-blue-200); color:var(--color-blue-800); background:var(--color-blue-50); border-radius:999px; padding:.1rem .48rem; font-weight:700; font-size:.8rem; white-space:nowrap; }
+    .badge.done { border-color:var(--color-emerald-200); background:var(--color-emerald-50); color:var(--color-emerald-800); }
+    .badge.hidden-status { border-color:var(--color-slate-300); background:var(--color-slate-100); color:var(--color-slate-900); }
+    .notice { padding:.7rem .9rem; border:1px solid var(--color-blue-200); border-radius:var(--radius-lg); background:var(--color-blue-50); color:var(--color-blue-800); margin-bottom:1rem; }
+    .notice.error { border-color:var(--color-red-300); background:var(--color-red-50); color:var(--color-red-800); }
+    .listing-state { text-align:center; padding:1.15rem; }
+    .listing-state button { margin-top:.5rem; }
+    .line,.total,.deposit dl { display:flex; justify-content:space-between; flex-wrap:wrap; align-items:baseline; gap:.15rem .75rem; }
+    .line + .line { margin-top:.65rem; padding-top:.65rem; border-top:1px solid var(--color-slate-200); }
+    .line dt { flex:1 1 8rem; }
+    .total { background:var(--color-blue-50); color:var(--color-blue-800); padding:.75rem; border-radius:var(--radius-lg); }
+    .total strong { font-size:1.35rem; line-height:1.2; }
+    .deposit { background:var(--color-slate-50); padding:.85rem 1rem; border-block-start:1px solid var(--color-slate-200); border-radius:0 0 var(--radius-xl) var(--radius-xl); }
+    @media (min-width:52rem) {
+      .columns { grid-template-columns:minmax(0,1.55fr) minmax(17rem,1fr); }
+      .filter-fields { grid-template-columns:1fr 1.35fr 1fr 1fr; }
+    }
+    @media (max-width:29rem) { .filter-fields,.data { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#screen-title">Ir para o conteúdo de Aluguéis</a>
+  <div class="review"><p class="wrap">Protótipo de histórico · Dados fictícios · Recarregar reinicia a demonstração</p></div>
+  <header class="bar"><nav class="wrap" aria-label="Navegação principal"><span>Painel</span><span>Frota</span><span>Pessoas</span><span>Preços</span><span aria-current="page">Aluguéis</span></nav></header>
+  <main class="wrap">
+    <header class="hero">
+      <div><p class="muted" id="path">Operação / Aluguéis</p><h1 id="screen-title" tabindex="-1">Aluguéis</h1><p class="muted" id="subtitle">Consulte contratos e confira estimativas ou valores finais.</p></div>
+      <div class="actions" id="detail-actions" hidden>
+        <button id="back" type="button" class="secondary">Voltar aos aluguéis</button>
+        <button id="hide-rental" type="button" class="secondary" hidden>Ocultar da operação</button>
+      </div>
+    </header>
+    <p id="notice" class="notice" role="status" tabindex="-1" hidden></p>
+    <p id="error" class="notice error" role="alert" tabindex="-1" hidden></p>
+
+    <section class="card" id="list" aria-labelledby="list-title">
+      <header class="head"><h2 id="list-title">Consulta de aluguéis</h2><p class="muted">A consulta padrão não inclui aluguéis ocultos.</p></header>
+      <form class="filters" id="filters" novalidate>
+        <div class="filter-fields">
+          <div class="field"><label for="state">Situação</label><select id="state"><option value="">Todas as situações</option><option value="open">Em aberto</option><option value="done">Concluído</option></select></div>
+          <div class="field"><label for="vehicle">Veículo</label><select id="vehicle"><option value="">Todos os veículos</option></select></div>
+          <div class="field"><label for="from">Saída a partir de</label><input id="from" placeholder="dd/mm/aaaa" aria-describedby="filter-help from-error"><small class="field-error" id="from-error"></small></div>
+          <div class="field"><label for="until">Saída até</label><input id="until" placeholder="dd/mm/aaaa" aria-describedby="filter-help until-error"><small class="field-error" id="until-error"></small></div>
+        </div>
+        <div class="split">
+          <div class="stack" style="gap:.35rem">
+            <label class="check"><input id="include" type="checkbox"> Incluir aluguéis ocultos</label>
+            <p class="muted" id="filter-help">O período usa a data de saída no horário de São Paulo.</p>
+          </div>
+          <button type="submit">Filtrar</button>
+        </div>
+      </form>
+      <div id="results" aria-busy="false">
+        <div id="list-state" class="listing-state" hidden><p id="list-message" role="status" tabindex="-1"></p><button id="retry" type="button" class="secondary" hidden>Tentar novamente</button></div>
+        <div id="table-region" class="scroll" tabindex="0" role="region" aria-label="Tabela de aluguéis">
+          <table><thead><tr>
+            <th scope="col">ID</th><th scope="col">Condutor</th><th scope="col">Veículo</th><th scope="col">Plano</th><th scope="col">Saída</th>
+            <th scope="col">Retorno previsto</th><th scope="col">Situação</th><th scope="col">Valor</th><th scope="col">Ações</th>
+          </tr></thead><tbody id="rows"></tbody></table>
+        </div>
+        <footer class="pad split" id="pager">
+          <p id="result-count" class="muted" role="status" tabindex="-1"></p>
+          <div class="actions"><button id="previous" type="button" class="secondary">Anterior</button><button id="next" type="button" class="secondary">Próxima</button></div>
+        </footer>
+      </div>
+    </section>
+    <div id="detail" class="columns" hidden></div>
+  </main>
+  <script>
+    "use strict";
+    const by = id => document.getElementById(id);
+    const currency = new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
+    const amount = value => currency.format(value);
+    const mode = new URLSearchParams(location.search).get('cenario');
+    const ca08 = Object.freeze([
+      ['Plano Livre','2 diárias × R$ 100,00 · 250 km rodados, sem cobrança por km','200.00'],
+      ['Taxa de preparação','Taxa fixa contratada','30.00'],
+      ['Suporte de viagem','Taxa incluída no retorno · 2 diárias × R$ 10,00','20.00'],
+      ['Seguro do cliente','2 diárias × R$ 5,00','10.00'],
+      ['Seguro de terceiros','2 diárias × R$ 7,00','14.00'],
+      ['Reposição de combustível','Gasolina · 10 L × R$ 6,00 por litro','60.00'],
+      ['Multa por atraso','10% somente sobre o subtotal do plano','20.00']
+    ]);
+    const snapshot = Object.freeze({contractor:'Locação Exemplo Ltda.',driver:'Marina Exemplo',plate:'SIM0A08',vehicle:'Modelo Aurora',
+      group:'Compactos',plan:'Livre',start:'2026-11-23',startTime:'10:00',due:'2026-11-24',dueTime:'16:00',
+      initial:'21.430 km',capacity:'Gasolina · Tanque cheio (50 L)'});
+    const fixtures = [
+      {id:'AL-2409',state:'open',hidden:false,data:Object.freeze({...snapshot,driver:'Pedro Exemplo',plate:'SIM0B09',vehicle:'Modelo Horizonte',
+        contractor:'Pedro Exemplo',plan:'Controlado',start:'2026-11-24',startTime:'09:00',due:'2026-11-25',dueTime:'09:00'}),
+        bill:Object.freeze({total:'100.00',lines:[['Plano Controlado','1 diária prevista × R$ 100,00','100.00'],['Cobrança por quilômetro','Franquia de 100 km · R$ 2,00 por km excedente',null]]})},
+      {id:'AL-2408',state:'done',hidden:false,data:snapshot,
+        bill:Object.freeze({returned:'24/11/2026 às 16:01',odometer:'21.680 km',fuel:'40 L',total:'354.00',lines:ca08})},
+      {id:'AL-2406',state:'done',hidden:false,data:Object.freeze({...snapshot,driver:'Tainá Exemplo',plate:'SIM0C06',vehicle:'Modelo Litoral',
+        start:'2026-11-20',due:'2026-11-21',initial:'12.300 km'}),
+        bill:Object.freeze({returned:'21/11/2026 às 16:00',odometer:'12.550 km',fuel:'40 L',total:'334.00',lines:ca08.slice(0,-1)})},
+      {id:'AL-2404',state:'done',hidden:true,data:Object.freeze({...snapshot,driver:'Raul Exemplo',plate:'SIM0D04',vehicle:'Modelo Serra',
+        start:'2026-11-17',due:'2026-11-18',initial:'18.000 km'}),
+        bill:Object.freeze({returned:'18/11/2026 às 16:00',odometer:'18.250 km',fuel:'50 L',total:'274.00',
+          lines:[...ca08.slice(0,5),['Reposição de combustível','Gasolina · 0 L × R$ 6,00 por litro','0.00']]})}
+    ];
+    const pageSize = 2; // Small review dataset to exercise pagination, not a production default.
+    let query = {state:'',vehicle:'',from:'',until:'',include:false};
+    let page = 1, selected = null, stale = mode === 'versao-desatualizada', fail = mode === 'falha-consulta', pending;
+    const localDate = iso => iso.split('-').reverse().join('/');
+    const dateCell = (iso,time) => `${localDate(iso)}<small>${time}</small>`;
+    const dateLabel = (iso,time) => `${localDate(iso)} às ${time}`;
+    const datum = (label,value) => `<div><dt>${label}</dt><dd>${value}</dd></div>`;
+    const badge = rental => `<span class="badge ${rental.state === 'done' ? 'done' : ''}">${rental.state === 'open' ? 'Em aberto' : 'Concluído'}</span>${rental.hidden ? ' <span class="badge hidden-status">Oculto</span>' : ''}`;
+    const line = ([label,detail,value]) => `<div class="line"><dt>${label}<small>${detail}</small></dt><dd class="money"><strong>${value === null ? 'Pendente' : amount(value)}</strong></dd></div>`;
+    function vehicleOptions() {
+      const value = by('vehicle').value;
+      const allowed = fixtures.filter(r => query.include || !r.hidden);
+      by('vehicle').replaceChildren(new Option('Todos os veículos',''),...allowed.map(r => new Option(`${r.data.plate} — ${r.data.vehicle}`,r.data.plate)));
+      if (allowed.some(r => r.data.plate === value)) by('vehicle').value = value;
+    }
+
+    function announce(id,text) {
+      by(id).textContent = text;
+      by(id).hidden = false;
+      by(id).focus();
+    }
+    function clearFeedback() { by('notice').hidden = by('error').hidden = true; }
+    function stateMessage(text,retry = false) {
+      by('list-state').hidden = false;
+      by('list-message').textContent = text;
+      by('retry').hidden = !retry;
+      by('table-region').hidden = by('pager').hidden = true;
+    }
+    function list(focus = false) {
+      vehicleOptions();
+      const matches = fixtures.filter(r => (!r.hidden || query.include) && (!query.state || r.state === query.state)
+        && (!query.vehicle || r.data.plate === query.vehicle) && (!query.from || r.data.start >= query.from)
+        && (!query.until || r.data.start <= query.until));
+      page = Math.max(1,Math.min(page,Math.ceil(matches.length / pageSize)));
+      if (!matches.length) {
+        stateMessage('Nenhum aluguel encontrado para os filtros informados.');
+        if (focus) by('list-message').focus();
+        return;
+      }
+      by('list-state').hidden = true;
+      by('table-region').hidden = by('pager').hidden = false;
+      by('rows').innerHTML = matches.slice((page-1)*pageSize,page*pageSize).map(r => `<tr>
+        <th scope="row">${r.id}</th><td>${r.data.driver}</td><td><strong>${r.data.plate}</strong><small>${r.data.vehicle}</small></td><td>${r.data.plan}</td>
+        <td>${dateCell(r.data.start,r.data.startTime)}</td><td>${dateCell(r.data.due,r.data.dueTime)}</td><td>${badge(r)}</td>
+        <td class="money"><strong>${amount(r.bill.total)}</strong><small>${r.state === 'open' ? 'Estimativa' : 'Total final'}</small></td>
+        <td><button type="button" class="secondary" data-rental="${r.id}" aria-label="Consultar aluguel ${r.id}">Consultar</button></td></tr>`).join('');
+      by('previous').disabled = page <= 1;
+      by('next').disabled = page * pageSize >= matches.length;
+      by('result-count').textContent = `Página ${page} de ${Math.ceil(matches.length/pageSize)} · ${matches.length} ${matches.length === 1 ? 'aluguel' : 'aluguéis'}`;
+      if (focus) by('result-count').focus();
+    }
+
+    function queryList(focus = true) {
+      clearTimeout(pending);
+      by('results').setAttribute('aria-busy','true');
+      stateMessage('Carregando aluguéis…');
+      pending = setTimeout(() => {
+        by('results').setAttribute('aria-busy','false');
+        if (fail) {
+          fail = false;
+          stateMessage('Não foi possível consultar os aluguéis. Tente novamente.',true);
+          if (focus) by('list-message').focus();
+        } else list(focus);
+      },180);
+    }
+
+    function dateFilter(id) {
+      const text = by(id).value.trim();
+      if (!text) return '';
+      const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(text);
+      if (!match) return null;
+      const iso = `${match[3]}-${match[2]}-${match[1]}`;
+      const date = new Date(`${iso}T00:00:00Z`);
+      return Number.isNaN(date.valueOf()) || date.toISOString().slice(0,10) !== iso ? null : iso;
+    }
+
+    function applyFilters(event) {
+      event.preventDefault();
+      clearFeedback();
+      const from = dateFilter('from'), until = dateFilter('until');
+      const errors = {from:from === null ? 'Informe uma data válida.' : '',
+        until:until === null ? 'Informe uma data válida.' : from && until && until < from ? 'A data final não pode ser anterior à inicial.' : ''};
+      for (const id of ['from','until']) {
+        if (errors[id]) by(id).setAttribute('aria-invalid','true'); else by(id).removeAttribute('aria-invalid');
+        by(`${id}-error`).textContent = errors[id];
+      }
+      if (errors.from || errors.until) {
+        announce('error','Revise as datas do período informado.');
+        return;
+      }
+      const include = by('include').checked;
+      const vehicle = by('vehicle').value;
+      query = {state:by('state').value,vehicle:!include && fixtures.some(r => r.hidden && r.data.plate === vehicle) ? '' : vehicle,from,until,include};
+      page = 1;
+      queryList();
+    }
+
+    function open(rental) {
+      if (!rental || (rental.hidden && !query.include)) return;
+      clearFeedback();
+      selected = rental;
+      const d = rental.data, b = rental.bill, final = rental.state === 'done';
+      by('list').hidden = true;
+      by('detail').hidden = by('detail-actions').hidden = false;
+      by('hide-rental').hidden = !final || rental.hidden;
+      by('hide-rental').disabled = false;
+      by('path').textContent = 'Operação / Aluguéis / Detalhe';
+      by('screen-title').textContent = `Aluguel ${rental.id}`;
+      by('subtitle').textContent = final ? 'Contrato concluído · Dados preservados para consulta' : 'Contrato em aberto · Valores estimados';
+      by('detail').innerHTML = `<div class="stack">
+        <section class="card" aria-labelledby="vehicle-title"><header class="head split"><div><p class="muted">${rental.id} · Grupo ${d.group}</p>
+        <h2 id="vehicle-title">${d.plate} · ${d.vehicle}</h2></div><div class="actions">${badge(rental)}</div></header>
+        <dl class="data pad">${datum('Contratante',d.contractor)}${datum('Condutor',d.driver)}${datum('Plano',d.plan)}
+        ${datum('Hodômetro inicial',d.initial)}${datum('Saída',dateLabel(d.start,d.startTime))}${datum('Retorno previsto',dateLabel(d.due,d.dueTime))}
+        ${datum('Combustível na saída',d.capacity)}</dl></section>
+        ${final ? `<section class="card" aria-labelledby="return-title"><header class="head"><h2 id="return-title">Retorno registrado</h2><p class="muted">Horário de São Paulo · Dados do fechamento</p></header>
+        <dl class="data pad">${datum('Retorno real',b.returned)}${datum('Hodômetro final',b.odometer)}${datum('Litros restantes',b.fuel)}</dl></section>` : ''}</div>
+        <section class="card" aria-labelledby="statement-title"><header class="head"><h2 id="statement-title">${final ? 'Demonstrativo final' : 'Demonstrativo estimado'}</h2>
+        <p class="muted">${final ? 'Valores registrados · Somente leitura' : 'Parcelas conhecidas · Não é o valor final'}</p></header>
+        <div class="pad stack"><dl>${b.lines.map(line).join('')}</dl><div class="total"><span>${final ? 'Total final' : 'Parcelas conhecidas'}</span><strong class="money">${amount(b.total)}</strong></div></div>
+        <div class="deposit"><dl><dt><strong>Caução</strong></dt><dd class="money"><strong>R$ 1.000,00</strong></dd></dl><small>Garantia separada, não incluída no custo.</small></div></section>`;
+      by('screen-title').focus();
+    }
+
+    function back() {
+      const id = selected?.id;
+      selected = null;
+      clearFeedback();
+      by('detail').hidden = by('detail-actions').hidden = true;
+      by('detail').replaceChildren();
+      by('list').hidden = false;
+      by('path').textContent = 'Operação / Aluguéis';
+      by('screen-title').textContent = 'Aluguéis';
+      by('subtitle').textContent = 'Consulte contratos e confira estimativas ou valores finais.';
+      list();
+      (by('rows').querySelector(`[data-rental="${id}"]`) ?? by('screen-title')).focus();
+    }
+
+    by('hide-rental').addEventListener('click',() => {
+      if (!selected || selected.state !== 'done' || selected.hidden) return;
+      if (stale) {
+        stale = false;
+        by('hide-rental').disabled = true;
+        announce('error','O aluguel não foi ocultado porque a versão mudou. Volte à lista e consulte novamente.');
+        return;
+      }
+      const id = selected.id;
+      selected.hidden = true;
+      // The current query may already explicitly include hidden records.
+      back();
+      announce('notice',`Aluguel ${id} ocultado da operação. O contrato e o demonstrativo foram preservados.`);
+    });
+    by('rows').addEventListener('click',event => {
+      const button = event.target.closest('[data-rental]');
+      if (button) open(fixtures.find(r => r.id === button.dataset.rental));
+    });
+    by('back').addEventListener('click',back);
+    by('filters').addEventListener('submit',applyFilters);
+    by('retry').addEventListener('click',() => queryList());
+    by('previous').addEventListener('click',() => { page--; list(true); });
+    by('next').addEventListener('click',() => { page++; list(true); });
+    vehicleOptions();
+    queryList(false);
+  </script>
+</body>
+</html>
