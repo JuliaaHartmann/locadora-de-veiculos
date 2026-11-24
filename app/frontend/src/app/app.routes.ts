@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './auth.guard';
+import type { AlugueisComponent } from './locacoes/alugueis.component';
 
 export const routes: Routes = [
   { path: 'login', loadComponent: () => import('./login.component').then(m => m.LoginComponent) },
@@ -22,6 +23,7 @@ export const routes: Routes = [
   {
     path: 'alugueis',
     canActivate: [authGuard],
+    canDeactivate: [(componente: AlugueisComponent) => componente.podeSair()],
     loadComponent: () => import('./locacoes/alugueis.component').then(m => m.AlugueisComponent),
   },
   { path: '', canActivate: [authGuard], loadComponent: () => import('./painel.component').then(m => m.PainelComponent) },
