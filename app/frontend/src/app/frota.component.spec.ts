@@ -2,6 +2,8 @@ import { TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
 import { CadastrosService } from './cadastros.service';
 import { FrotaComponent } from './frota.component';
+import { signal } from '@angular/core';
+import { SessaoService } from './sessao.service';
 
 describe('Frota F2', () => {
   const listar = vi.fn();
@@ -18,8 +20,9 @@ describe('Frota F2', () => {
     excluir.mockReset().mockResolvedValue(undefined);
     TestBed.configureTestingModule({
       providers: [{ provide: CadastrosService, useValue: {
-        listar, obter, criar, editar, excluir, listarOpcoes: async () => [grupo],
-      } }],
+        listar, obter, criar, editar, excluir, lerFoto: async () => { throw new HttpErrorResponse({ status: 404 }); },
+        listarOpcoes: async () => [grupo],
+      } }, { provide: SessaoService, useValue: { autenticada: signal(true) } }],
     });
   });
 

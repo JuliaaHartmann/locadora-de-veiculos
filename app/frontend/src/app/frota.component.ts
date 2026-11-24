@@ -1,6 +1,9 @@
-import { Component, ElementRef, Injector, afterNextRender, computed, inject, signal, viewChild } from '@angular/core';
+import { Component, DestroyRef, ElementRef, Injector, afterNextRender, computed, effect, inject, signal, viewChild } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { FormField, form, required } from '@angular/forms/signals';
 import { CadastrosService, decimalDoFormulario, formatarMoeda, validarLimites } from './cadastros.service';
+import { FotoMiniaturaComponent, LeiturasMiniaturasFrota } from './foto-miniatura.component';
+import { SessaoService } from './sessao.service';
 
 type Aba = 'grupos' | 'planos' | 'veiculos';
 type Modalidade = 'Diario' | 'Controlado' | 'Livre';
@@ -46,7 +49,8 @@ interface VeiculoModelo {
 
 @Component({
   standalone: true,
-  imports: [FormField],
+  imports: [FormField, FotoMiniaturaComponent],
+  providers: [LeiturasMiniaturasFrota],
   template: `
     <main class="max-w-6xl">
       <p class="text-sm text-slate-600">Cadastros / Frota e preços</p>
@@ -55,7 +59,7 @@ interface VeiculoModelo {
 
       <nav aria-label="Cadastros da frota" class="my-4 flex flex-wrap gap-2">
         @for (item of abas; track item.valor) {
-          <button type="button" (click)="trocarAba(item.valor)"
+          <button type="button" (click)="trocarAba(item.valor)" [disabled]="bloquearNavegacaoFoto()"
             [attr.aria-current]="aba() === item.valor ? 'page' : null"
             [class]="aba() === item.valor ? 'bg-blue-700 text-white border-blue-700' : 'bg-white text-slate-900 border border-slate-400'">
             {{ item.rotulo }}
@@ -63,7 +67,7 @@ interface VeiculoModelo {
         }
       </nav>
 
-      <p role="status" class="font-medium text-slate-700">{{ aviso() }}</p>
+      <p #avisoElemento role="status" tabindex="-1" class="font-medium text-slate-700">{{ aviso() }}</p>
       <div #resumo tabindex="-1" role="alert" class="my-3 rounded-lg border border-red-300 bg-red-50 p-4"
         [hidden]="!temErros()">
         <strong>Revise os dados informados.</strong>
@@ -154,19 +158,21 @@ interface VeiculoModelo {
             }
 
             @if (aba() === 'veiculos') {
-              <div class="overflow-auto">
+              <div class="overflow-auto focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-blue-700"
+                role="region" aria-label="Tabela de veículos" tabindex="0">
                 <table class="w-full min-w-[850px] border-collapse text-left">
                   <thead><tr>
-                    <th scope="col">ID</th><th scope="col">Placa</th><th scope="col">Marca / modelo</th>
+                    <th scope="col">Foto</th><th scope="col">ID</th><th scope="col">Placa</th><th scope="col">Marca / modelo</th>
                     <th scope="col">Cor</th><th scope="col">Combustível</th><th scope="col">Grupo</th>
                     <th scope="col">Ações</th>
                   </tr></thead>
                   <tbody>
                     @if (agrupar()) {
                       @for (bloco of veiculosAgrupados(); track bloco.grupoId) {
-                        <tr><th colspan="7" scope="rowgroup">{{ bloco.grupoNome }}</th></tr>
+                        <tr><th colspan="8" scope="rowgroup">{{ bloco.grupoNome }}</th></tr>
                         @for (veiculo of bloco.itens; track veiculo.id) {
                           <tr>
+                            <td><app-foto-miniatura [veiculoId]="veiculo.id" [placa]="veiculo.placa" /></td>
                             <td>{{ veiculo.id }}</td>
                             <td>{{ veiculo.placa }}</td>
                             <td>{{ veiculo.marca }} / {{ veiculo.modelo }}</td>
@@ -183,6 +189,7 @@ interface VeiculoModelo {
                     } @else {
                       @for (veiculo of veiculos(); track veiculo.id) {
                         <tr>
+                          <td><app-foto-miniatura [veiculoId]="veiculo.id" [placa]="veiculo.placa" /></td>
                           <td>{{ veiculo.id }}</td>
                           <td>{{ veiculo.placa }}</td>
                           <td>{{ veiculo.marca }} / {{ veiculo.modelo }}</td>
@@ -215,7 +222,7 @@ interface VeiculoModelo {
       } @else {
         <section class="rounded-xl border border-slate-300 bg-white shadow-sm">
           <div class="border-b border-slate-200 p-4">
-            <h2 class="text-xl font-semibold">{{ editandoId() ? 'Editar' : 'Cadastrar' }} — {{ tituloEditor() }}</h2>
+            <h2 #tituloEditorElemento tabindex="-1" class="text-xl font-semibold">{{ cadastroConfirmado() ? 'Veículo cadastrado' : (editandoId() ? 'Editar' : 'Cadastrar') + ' — ' + tituloEditor() }}</h2>
           </div>
 
           @if (aba() === 'grupos') {
@@ -305,8 +312,10 @@ interface VeiculoModelo {
           }
 
           @if (aba() === 'veiculos') {
-            <form class="grid gap-4 p-4" (submit)="$event.preventDefault(); salvarVeiculo()" novalidate>
-              <div class="grid gap-4 sm:grid-cols-2">
+            <div class="grid items-start gap-4 p-4 min-[840px]:grid-cols-[minmax(0,1.4fr)_minmax(17rem,1fr)]">
+            <form class="m-0 grid min-w-0 gap-4 rounded-xl border border-slate-300 p-4" (submit)="$event.preventDefault(); salvarVeiculo()" novalidate>
+              <h3 class="font-semibold">Dados do veículo</h3>
+              <fieldset class="grid min-w-0 gap-4 sm:grid-cols-2" [disabled]="salvando() || cadastroConfirmado() || operacaoFoto() !== ''">
                 <div class="grid gap-1">
                   <label for="veiculo-grupo">Grupo</label>
                   <select id="veiculo-grupo" [formField]="veiculoForm.grupoId"
@@ -366,12 +375,56 @@ interface VeiculoModelo {
                     [attr.aria-invalid]="erros()['ano'] ? 'true' : null" aria-describedby="veiculo-ano-erro">
                   <small id="veiculo-ano-erro" class="text-red-800">{{ erros()['ano'] }}</small>
                 </div>
-              </div>
+              </fieldset>
               <div class="flex gap-2">
-                <button type="button" (click)="cancelar()">Cancelar</button>
-                <button type="submit" [disabled]="salvando()">Salvar</button>
+                <button type="button" class="border border-slate-500 bg-white text-slate-900" (click)="voltarVeiculos()"
+                  [disabled]="bloquearNavegacaoFoto()">{{ cadastroConfirmado() ? 'Voltar aos veículos' : 'Cancelar' }}</button>
+                @if (!cadastroConfirmado()) {
+                  <button type="submit" [disabled]="salvando() || operacaoFoto() !== ''">{{ salvando() ? 'Salvando veículo…' : 'Salvar' }}</button>
+                }
               </div>
             </form>
+            <section aria-labelledby="titulo-foto" class="grid min-w-0 gap-3 rounded-xl border border-slate-300 p-4 shadow-sm">
+              <h3 id="titulo-foto" #tituloFoto tabindex="-1" class="font-semibold">Foto do veículo <span class="text-sm text-slate-600">· Opcional</span></h3>
+              @if (editandoId() || cadastroConfirmado()) {
+                <div class="grid min-h-36 place-items-center rounded-lg border border-slate-300 bg-slate-50 p-2 text-center">
+                  @if (fotoUrl(); as url) {
+                    <img [src]="url" [alt]="descricaoFoto()" class="max-h-60 w-full object-contain">
+                  } @else {
+                    <p role="status">{{ estadoFoto() === 'carregando' ? 'Carregando foto…' :
+                      estadoFoto() === 'indisponivel' ? 'Foto temporariamente indisponível.' : 'Veículo sem foto.' }}</p>
+                  }
+                </div>
+              } @else {
+                <p class="m-0 text-slate-600">Se você selecionar uma foto, ela será enviada depois que o veículo for cadastrado.</p>
+              }
+              <p class="m-0" role="status">{{ operacaoFoto() || avisoFoto() }}</p>
+              @if (erroFoto()) {
+                <p id="erro-foto" #resumoFoto tabindex="-1" role="alert" class="m-0 rounded-lg border border-red-300 bg-red-50 p-3">{{ erroFoto() }}</p>
+              }
+              <p id="ajuda-foto" class="m-0 text-sm text-slate-600">JPEG ou PNG estático, até 16 megapixels. O envio completo, com o arquivo, não pode passar de 5 MiB.</p>
+              <label class="relative w-fit max-w-full rounded-md border border-slate-500 bg-white px-3 py-2
+                has-focus-visible:outline-3 has-focus-visible:outline-blue-700 has-focus-visible:outline-offset-3">
+                Selecionar arquivo
+                <input type="file" #entradaFoto class="sr-only" accept="image/jpeg,image/png,.jpg,.jpeg,.png"
+                  [disabled]="salvando() || operacaoFoto() !== ''" (change)="selecionarFoto($event)"
+                  [attr.aria-invalid]="erroArquivoFoto() ? 'true' : null"
+                  [attr.aria-describedby]="erroArquivoFoto() ? 'ajuda-foto erro-foto' : 'ajuda-foto'">
+              </label>
+              <p class="m-0 text-sm text-slate-600" role="status">{{ arquivoFoto() ? 'Um arquivo selecionado.' : 'Nenhum arquivo selecionado.' }}</p>
+              @if (editandoId()) {
+                <div class="flex flex-wrap gap-2">
+                  <button type="button" [disabled]="!arquivoFoto() || operacaoFoto() !== '' || salvando() || !etag() || versaoFotoVencida() || estadoFoto() === 'carregando'"
+                    (click)="enviarFoto()">{{ cadastroConfirmado() ? 'Tentar enviar a foto novamente' : (fotoConhecida() ? 'Substituir foto' : 'Enviar foto') }}</button>
+                  @if (fotoConhecida() && !cadastroConfirmado()) {
+                    <button type="button" class="border border-slate-500 bg-white text-slate-900"
+                      [disabled]="operacaoFoto() !== '' || salvando() || !etag() || versaoFotoVencida()"
+                      (click)="removerFoto()">Remover foto</button>
+                  }
+                </div>
+              }
+            </section>
+            </div>
           }
         </section>
       }
@@ -383,6 +436,14 @@ export class FrotaComponent {
   private readonly servico = inject(CadastrosService);
   private readonly injector = inject(Injector);
   private readonly resumo = viewChild<ElementRef<HTMLElement>>('resumo');
+  private readonly sessao = inject(SessaoService);
+  private readonly resumoFoto = viewChild<ElementRef<HTMLElement>>('resumoFoto');
+  private readonly tituloFoto = viewChild<ElementRef<HTMLElement>>('tituloFoto');
+  private readonly avisoElemento = viewChild<ElementRef<HTMLElement>>('avisoElemento');
+  private readonly tituloEditorElemento = viewChild<ElementRef<HTMLElement>>('tituloEditorElemento');
+  private readonly entradaFoto = viewChild<ElementRef<HTMLInputElement>>('entradaFoto');
+  private geracaoFoto = 0;
+  private leituraFoto = 0;
 
   readonly abas: { valor: Aba; rotulo: string }[] = [
     { valor: 'grupos', rotulo: 'Grupos' },
@@ -406,6 +467,18 @@ export class FrotaComponent {
   readonly gruposOpcoes = signal<Grupo[]>([]);
   readonly filtroGrupo = signal('');
   readonly agrupar = signal(false);
+  readonly arquivoFoto = signal<File | null>(null);
+  readonly fotoUrl = signal('');
+  readonly estadoFoto = signal<'ausente' | 'carregando' | 'ativa' | 'indisponivel'>('ausente');
+  readonly fotoConhecida = signal(false);
+  readonly avisoFoto = signal('');
+  readonly erroFoto = signal('');
+  readonly erroArquivoFoto = signal(false);
+  readonly versaoFotoVencida = signal(false);
+  readonly operacaoFoto = signal('');
+  readonly cadastroConfirmado = signal(false);
+  readonly descricaoFoto = signal('Foto do veículo');
+  readonly bloquearNavegacaoFoto = computed(() => this.aba() === 'veiculos' && (this.salvando() || this.operacaoFoto() !== ''));
 
   readonly temErros = computed(() => Object.keys(this.erros()).length > 0);
   readonly mensagensErro = computed(() => Object.values(this.erros()));
@@ -453,10 +526,15 @@ export class FrotaComponent {
   });
 
   constructor() {
+    effect(() => {
+      if (!this.sessao.autenticada()) this.limparFoto();
+    });
+    inject(DestroyRef).onDestroy(() => this.limparFoto());
     void this.carregar();
   }
 
   trocarAba(aba: Aba) {
+    if (this.bloquearNavegacaoFoto()) return;
     this.aba.set(aba);
     this.cancelar();
     this.pagina.set(1);
@@ -516,6 +594,7 @@ export class FrotaComponent {
   }
 
   novo() {
+    this.limparFoto();
     this.editando.set(true);
     this.editandoId.set(null);
     this.etag.set('');
@@ -529,6 +608,7 @@ export class FrotaComponent {
       grupoId: this.filtroGrupo(), placa: '', marca: '', modelo: '', cor: '', ano: '',
       combustivel: 'Gasolina', capacidadeLitros: '',
     });
+    if (this.aba() === 'veiculos') this.focarEditorVeiculo();
   }
 
   async editarGrupo(id: string) {
@@ -560,8 +640,11 @@ export class FrotaComponent {
   }
 
   async editarVeiculo(id: string) {
+    this.limparFoto();
+    const operacao = this.geracaoFoto;
     try {
       const resposta = await this.servico.obter<Veiculo>(`/veiculos/${id}?paraEdicao=true`);
+      if (operacao !== this.geracaoFoto) return;
       this.veiculoModelo.set({
         grupoId: resposta.dados.grupoId,
         placa: resposta.dados.placa,
@@ -575,11 +658,16 @@ export class FrotaComponent {
       this.etag.set(resposta.etag);
       this.editandoId.set(id);
       this.erros.set({});
+      this.aviso.set('');
       this.editando.set(true);
-    } catch (erro: unknown) { this.falhar(erro); }
+      this.descricaoFoto.set(`Foto do veículo ${resposta.dados.placa}`);
+      this.focarEditorVeiculo();
+      void this.carregarFoto(id);
+    } catch (erro: unknown) { if (operacao === this.geracaoFoto) this.falhar(erro); }
   }
 
   cancelar() {
+    this.limparFoto();
     this.editando.set(false);
     this.editandoId.set(null);
     this.erros.set({});
@@ -637,7 +725,7 @@ export class FrotaComponent {
   }
 
   async salvarVeiculo() {
-    if (this.salvando()) return;
+    if (this.salvando() || this.operacaoFoto() || this.cadastroConfirmado()) return;
     const modelo = this.veiculoModelo();
     const erros = validarLimites({ ...modelo, placa: modelo.placa.replace(/[^\p{L}\p{Nd}]/gu, '') },
       { placa: 16, marca: 200, modelo: 200, cor: 100 });
@@ -653,8 +741,7 @@ export class FrotaComponent {
     else if (!/^\d{1,9}(\.\d{1,3})?$/.test(capacidade) || Number(capacidade) <= 0)
       erros['capacidadeLitros'] = 'Informe capacidade positiva com até 3 casas.';
     if (Object.keys(erros).length > 0) { this.falharCampos(erros); return; }
-    await this.executarSalvar(async () => {
-      const corpo = {
+    const corpo = {
         grupoId: modelo.grupoId,
         placa: modelo.placa,
         marca: modelo.marca,
@@ -663,13 +750,179 @@ export class FrotaComponent {
         ano: Number(modelo.ano),
         combustivel: modelo.combustivel,
         capacidadeLitros: capacidade,
-      };
-      if (this.editandoId()) {
-        await this.servico.editar(`/veiculos/${this.editandoId()}`, corpo, this.etag());
-      } else {
-        await this.servico.criar('/veiculos', corpo);
+    };
+    const id = this.editandoId();
+    if (id) {
+      await this.executarSalvar(() => this.servico.editar(`/veiculos/${id}`, corpo, this.etag()));
+      return;
+    }
+    const foto = this.arquivoFoto();
+    const operacao = this.geracaoFoto;
+    this.salvando.set(true);
+    this.erros.set({});
+    this.aviso.set('');
+    try {
+      const resposta = await this.servico.criar<Veiculo>('/veiculos', corpo);
+      if (operacao !== this.geracaoFoto) return;
+      if (foto && resposta.status !== 201) {
+        this.falharCampos({ geral: 'Não foi possível confirmar o cadastro. A foto não foi enviada. Consulte a lista antes de tentar novamente.' });
+        return;
       }
-    });
+      if (!foto) {
+        await this.encerrarVeiculo('Veículo cadastrado sem foto.');
+        return;
+      }
+      this.cadastroConfirmado.set(true);
+      this.editandoId.set(resposta.dados?.id || null);
+      this.etag.set(resposta.etag);
+      this.descricaoFoto.set(`Foto do veículo ${resposta.dados?.placa || modelo.placa}`);
+      this.aviso.set('Veículo cadastrado.');
+      if (!this.editandoId() || !this.etag()) {
+        this.falharFoto('O veículo foi cadastrado, mas faltam dados para enviar a foto. Consulte o mesmo veículo na lista antes de tentar novamente.');
+        return;
+      }
+      await this.mutarFoto(false, foto);
+    } catch (erro: unknown) {
+      if (operacao === this.geracaoFoto) {
+        const errosCadastro = CadastrosService.errosDe(erro);
+        if (foto) errosCadastro['foto'] = 'A foto não foi enviada. Consulte a lista se o cadastro não puder ser confirmado.';
+        this.falharCampos(errosCadastro);
+      }
+    } finally { this.salvando.set(false); }
+  }
+
+  selecionarFoto(evento: Event) {
+    this.arquivoFoto.set((evento.target as HTMLInputElement).files?.[0] ?? null);
+    this.erroFoto.set('');
+    this.erroArquivoFoto.set(false);
+    this.avisoFoto.set('');
+  }
+
+  private async carregarFoto(id: string) {
+    const geracao = this.geracaoFoto;
+    const leitura = ++this.leituraFoto;
+    const atual = () => geracao === this.geracaoFoto && leitura === this.leituraFoto && this.sessao.autenticada();
+    this.estadoFoto.set('carregando');
+    try {
+      const blob = await this.servico.lerFoto(id);
+      if (!atual()) return;
+      this.trocarUrlFoto(URL.createObjectURL(blob));
+      this.fotoConhecida.set(true);
+      this.estadoFoto.set('ativa');
+    } catch (erro) {
+      if (!atual()) return;
+      if (erro instanceof HttpErrorResponse && erro.status === 404) {
+        this.trocarUrlFoto('');
+        this.fotoConhecida.set(false);
+        this.estadoFoto.set('ausente');
+      } else {
+        if (!this.fotoUrl()) this.estadoFoto.set('indisponivel');
+        if (erro instanceof HttpErrorResponse && erro.status === 503 && erro.error instanceof Blob) {
+          try {
+            const problema = JSON.parse(await erro.error.text());
+            if (atual() && problema.code === 'foto_indisponivel') this.fotoConhecida.set(true);
+          } catch { /* Indisponibilidade não é ausência de foto. */ }
+        }
+      }
+    }
+  }
+
+  enviarFoto() { return this.mutarFoto(false, this.arquivoFoto()); }
+  removerFoto() { return this.mutarFoto(true, null); }
+
+  private async mutarFoto(remover: boolean, arquivo: File | null) {
+    const id = this.editandoId(), versao = this.etag();
+    const geracao = this.geracaoFoto;
+    if (!id || !versao || this.versaoFotoVencida() || this.operacaoFoto() || (!remover && !arquivo)) return;
+    this.erroFoto.set('');
+    this.erroArquivoFoto.set(false);
+    this.avisoFoto.set('');
+    const parcial = this.cadastroConfirmado() ? 'O veículo foi cadastrado. ' : '';
+    if (arquivo && (!arquivo.size || arquivo.size >= 5 * 1024 * 1024)) {
+      this.falharFoto(`${parcial}Selecione um JPEG ou PNG estático dentro dos limites informados.`, true);
+      return;
+    }
+    this.operacaoFoto.set(remover ? 'Removendo foto…' : 'Enviando foto…');
+    try {
+      const resposta = remover ? await this.servico.removerFoto(id, versao) : await this.servico.enviarFoto(id, versao, arquivo!);
+      if (geracao !== this.geracaoFoto) return;
+      this.etag.set(resposta.etag);
+      this.arquivoFoto.set(null);
+      const entrada = this.entradaFoto()?.nativeElement;
+      if (entrada) entrada.value = '';
+      if (this.cadastroConfirmado()) {
+        await this.encerrarVeiculo('Veículo cadastrado e foto salva.');
+      } else {
+        const substituiu = this.fotoConhecida();
+        this.leituraFoto++;
+        this.trocarUrlFoto('');
+        this.fotoConhecida.set(!remover);
+        this.estadoFoto.set('ausente');
+        this.avisoFoto.set(remover ? 'Foto removida.' : substituiu ? 'Foto substituída.' : 'Foto adicionada.');
+        afterNextRender(() => this.tituloFoto()?.nativeElement.focus(), { injector: this.injector });
+        if (!remover) void this.carregarFoto(id);
+      }
+    } catch (erro) {
+      if (geracao !== this.geracaoFoto) return;
+      const http = erro instanceof HttpErrorResponse ? erro : null;
+      if (http?.status === 412 || http?.status === 428) {
+        this.versaoFotoVencida.set(true);
+        this.falharFoto(`${parcial}O veículo mudou. Consulte o cadastro na lista antes de tentar novamente.`);
+      } else if (!http || http.status === 0 || (http.status >= 500 &&
+          !['foto_nao_gravada', 'foto_processamento_indisponivel'].includes(http.error?.code))) {
+        this.falharFoto(`${parcial}Não foi possível confirmar ${remover ? 'a remoção' : 'o envio'} da foto. Confira a foto atual antes de tentar novamente.`);
+        await this.carregarFoto(id);
+      } else {
+        const mensagens = CadastrosService.errosDe(erro);
+        const campo = mensagens['arquivo'] || (http.status === 413 ? 'O envio completo da foto deve ter até 5 MiB.' : '');
+        const mensagem = campo || http.error?.detail || Object.values(mensagens)[0];
+        this.falharFoto(`${parcial}${mensagem}${parcial && !remover ? ' Tente novamente apenas o envio da foto.' : ''}`, !!campo);
+      }
+    } finally { if (geracao === this.geracaoFoto) this.operacaoFoto.set(''); }
+  }
+
+  voltarVeiculos() {
+    if (this.bloquearNavegacaoFoto()) return;
+    if (this.cadastroConfirmado()) void this.encerrarVeiculo('Veículo cadastrado.');
+    else this.cancelar();
+  }
+
+  private async encerrarVeiculo(mensagem: string) {
+    this.cancelar();
+    this.aviso.set(mensagem);
+    afterNextRender(() => this.avisoElemento()?.nativeElement.focus(), { injector: this.injector });
+    await this.carregar();
+  }
+
+  private falharFoto(mensagem: string, arquivo = false) {
+    this.erroFoto.set(mensagem);
+    this.erroArquivoFoto.set(arquivo);
+    afterNextRender(() => this.resumoFoto()?.nativeElement.focus(), { injector: this.injector });
+  }
+
+  private focarEditorVeiculo() {
+    afterNextRender(() => this.tituloEditorElemento()?.nativeElement.focus(), { injector: this.injector });
+  }
+
+  private trocarUrlFoto(url: string) {
+    const anterior = this.fotoUrl();
+    if (anterior) URL.revokeObjectURL(anterior);
+    this.fotoUrl.set(url);
+  }
+
+  private limparFoto() {
+    this.geracaoFoto++;
+    this.leituraFoto++;
+    this.trocarUrlFoto('');
+    this.arquivoFoto.set(null);
+    this.estadoFoto.set('ausente');
+    this.fotoConhecida.set(false);
+    this.avisoFoto.set('');
+    this.erroFoto.set('');
+    this.erroArquivoFoto.set(false);
+    this.versaoFotoVencida.set(false);
+    this.operacaoFoto.set('');
+    this.cadastroConfirmado.set(false);
   }
 
   async excluirGrupo(grupo: Grupo) {
@@ -700,6 +953,7 @@ export class FrotaComponent {
     this.aviso.set('');
     try {
       await operacao();
+      this.limparFoto();
       this.aviso.set('Cadastro salvo.');
       this.editando.set(false);
       this.editandoId.set(null);

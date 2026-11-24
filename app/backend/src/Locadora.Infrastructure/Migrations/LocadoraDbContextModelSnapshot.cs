@@ -591,6 +591,98 @@ namespace Locadora.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Locadora.Domain.FotoObjeto", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("AtualizadoEm")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Chave")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(80)");
+
+                    b.Property<DateTimeOffset>("CriadoEm")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Deposito")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(300)");
+
+                    b.Property<Guid>("EmpresaId")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Estado")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset?>("ExcluidoEmUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Hash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("char(64)")
+                        .IsFixedLength();
+
+                    b.Property<string>("Mime")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(16)");
+
+                    b.Property<DateTimeOffset>("RetomarAposUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<long>("Tamanho")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("TentativasCompensacao")
+                        .HasColumnType("int");
+
+                    b.Property<string>("UrlRelativa")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<Guid>("VeiculoId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("Versao")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("EmpresaId", "Id");
+
+                    b.HasIndex("Deposito", "Chave")
+                        .IsUnique();
+
+                    b.HasIndex("EmpresaId", "VeiculoId")
+                        .IsUnique()
+                        .HasFilter("[Estado] = 1");
+
+                    b.HasIndex("EmpresaId", "Deposito", "Estado", "RetomarAposUtc");
+
+                    b.ToTable("FotosObjetos", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_FotosObjetos_Conteudo", "[Tamanho] > 0 AND [Mime] IN ('image/jpeg', 'image/png') AND [TentativasCompensacao] >= 0");
+
+                            t.HasCheckConstraint("CK_FotosObjetos_Estado", "[Estado] BETWEEN 0 AND 5 AND [ExcluidoEmUtc] IS NULL");
+                        });
+                });
+
             modelBuilder.Entity("Locadora.Domain.Grupo", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1649,6 +1741,22 @@ namespace Locadora.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("EmpresaId", "AluguelId", "RevisaoId")
                         .HasPrincipalKey("EmpresaId", "AluguelId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Locadora.Domain.FotoObjeto", b =>
+                {
+                    b.HasOne("Locadora.Domain.Empresa", null)
+                        .WithMany()
+                        .HasForeignKey("EmpresaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Locadora.Domain.Veiculo", null)
+                        .WithMany()
+                        .HasForeignKey("EmpresaId", "VeiculoId")
+                        .HasPrincipalKey("EmpresaId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

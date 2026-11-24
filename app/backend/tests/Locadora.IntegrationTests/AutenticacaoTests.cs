@@ -18,6 +18,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 
 namespace Locadora.IntegrationTests;
@@ -485,18 +486,42 @@ public sealed class AutenticacaoTests
 }
 
 internal sealed class SqlServerWebApplicationFactory(bool indisponivel = false, bool prepararSchema = true,
-    bool falharAuditoria = false, string? falharAuditoriaEvento = null, string[]? origens = null)
+    bool falharAuditoria = false, string? falharAuditoriaEvento = null, string[]? origens = null,
+    IArmazenamentoFotos? armazenamentoFotos = null, IInterceptor? interceptorFotos = null, Guid? bancoCompartilhadoFotos = null,
+    bool ensaioR2 = false, ISaneadorFoto? saneadorFotos = null)
     : WebApplicationFactory<Program>
 {
-    private readonly string databaseName = $"LocadoraTeste_{Guid.NewGuid():N}";
+    private readonly string databaseName = $"LocadoraTeste_{bancoCompartilhadoFotos ?? Guid.NewGuid():N}";
     private bool descartado;
     private IHost? iniciado;
     private bool schemaPreparado;
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.UseEnvironment("Testing");
+        builder.UseEnvironment(ensaioR2 ? "Development" : "Testing");
+        if (ensaioR2)
+        {
+            builder.ConfigureLogging(logging => logging.ClearProviders());
+            builder.ConfigureAppConfiguration((_, config) =>
+            {
+                // O TestServer não carrega automaticamente os User Secrets da assembly da API.
+                // Importar só Fotos; SQL e JWT continuam sob controle do runner isolado.
+                var segredos = new ConfigurationBuilder().AddUserSecrets<Program>(optional: false).Build();
+                try { config.AddInMemoryCollection(segredos.GetSection("Fotos").AsEnumerable().ToArray()); }
+                finally { (segredos as IDisposable)?.Dispose(); }
+            });
+        }
         builder.ConfigureServices(services =>
         {
+            if (saneadorFotos is not null)
+            {
+                services.RemoveAll<ISaneadorFoto>();
+                services.AddSingleton(saneadorFotos);
+            }
+            if (armazenamentoFotos is not null)
+            {
+                services.RemoveAll<IArmazenamentoFotos>();
+                services.AddSingleton(armazenamentoFotos);
+            }
             if (origens is not null)
                 services.PostConfigure<Microsoft.AspNetCore.Cors.Infrastructure.CorsOptions>(options =>
                     options.AddPolicy("origens-configuradas", politica => politica
@@ -512,6 +537,7 @@ internal sealed class SqlServerWebApplicationFactory(bool indisponivel = false, 
                 if (falharAuditoria) options.AddInterceptors(new FalhaAuditoriaInterceptor());
                 else if (falharAuditoriaEvento is not null)
                     options.AddInterceptors(new FalhaAuditoriaInterceptor(falharAuditoriaEvento));
+                if (interceptorFotos is not null) options.AddInterceptors(interceptorFotos);
             });
             services.AddControllers().AddApplicationPart(typeof(RecursoTenantTesteController).Assembly);
         });

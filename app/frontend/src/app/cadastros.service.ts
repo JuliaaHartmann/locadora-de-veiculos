@@ -13,6 +13,7 @@ export interface Pagina<T> {
 export interface RespostaComEtag<T> {
   dados: T;
   etag: string;
+  status?: number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -55,7 +56,25 @@ export class CadastrosService {
   async criar<T>(caminho: string, corpo: unknown): Promise<RespostaComEtag<T>> {
     const resposta = await firstValueFrom(
       this.http.post<T>(this.url(caminho), corpo, { observe: 'response' }));
-    return { dados: resposta.body as T, etag: this.etag(resposta) };
+    return { dados: resposta.body as T, etag: this.etag(resposta), status: resposta.status };
+  }
+
+  lerFoto(id: string): Promise<Blob> {
+    return firstValueFrom(this.lerFotoCancelavel(id));
+  }
+
+  lerFotoCancelavel(id: string) {
+    return this.http.get(this.url(`/veiculos/${encodeURIComponent(id)}/foto`), { responseType: 'blob' });
+  }
+
+  enviarFoto(id: string, etag: string, arquivo: File): Promise<RespostaComEtag<null>> {
+    const corpo = new FormData();
+    corpo.append('arquivo', arquivo);
+    return this.editar(`/veiculos/${encodeURIComponent(id)}/foto`, corpo, etag);
+  }
+
+  removerFoto(id: string, etag: string): Promise<RespostaComEtag<null>> {
+    return this.removerComEtag(`/veiculos/${encodeURIComponent(id)}/foto`, etag);
   }
 
   async adicionarComEtag<T>(caminho: string, corpo: unknown, etag: string): Promise<RespostaComEtag<T>> {

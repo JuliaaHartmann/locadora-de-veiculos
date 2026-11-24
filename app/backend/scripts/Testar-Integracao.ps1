@@ -1,5 +1,8 @@
-param([switch]$Visual, [switch]$JornadaF3, [switch]$JornadaF4, [string]$FiltroIntegracao)
+param([switch]$Visual, [switch]$JornadaF3, [switch]$JornadaF4, [switch]$JornadaF5, [string]$FiltroIntegracao, [switch]$R2, [switch]$Detalhado)
 $ErrorActionPreference = 'Stop'
+if ($R2 -and ($Visual -or $JornadaF3 -or $JornadaF4 -or $JornadaF5 -or $FiltroIntegracao)) {
+    throw 'Use -R2 sozinho. O ensaio externo não faz parte das jornadas locais.'
+}
 $id = [Guid]::NewGuid().ToString('N')
 $projeto = "locadora-f1-testes-$id"
 $container = "$projeto-sqlserver-1"
@@ -8,11 +11,27 @@ $compose = @('--project-name', $projeto, '--file', (Join-Path $PSScriptRoot '../
     '--file', (Join-Path $PSScriptRoot '../tests/compose.verificacao.yml'))
 $senha = 'Aa1!' + [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
 $anteriores = @{}
+$temporario = Join-Path $env:LOCALAPPDATA 'Temp/opencode'
+$pastaFotos = Join-Path $temporario "fotos-testes-$id"
+$jornada = $JornadaF3 -or $JornadaF4 -or $JornadaF5
 $variaveis = @{
     MSSQL_SA_PASSWORD = $senha
     Autenticacao__Jwt__Chaves__v1 = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
     Autenticacao__Jwt__Chaves__anterior = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
     Logging__LogLevel__Microsoft = 'Critical'
+    Fotos__Provedor = if ($R2) { $null } else { 'Local' }
+    Fotos__PastaPrivada = if ($R2) { $null } else { $pastaFotos }
+    LOCADORA_ENSAIO_R2 = if ($R2) { '1' } else { $null }
+}
+if ($R2) {
+    $variaveis['DOTNET_ENVIRONMENT'] = 'Development'
+    $variaveis['ASPNETCORE_ENVIRONMENT'] = 'Development'
+    # Nenhum destes valores é lido do disco pelo script nem enviado como argumento.
+    # Deixar apenas o User Secrets de Development decidir o provedor, bucket e credenciais.
+    foreach ($chave in @('Fotos:Provedor', 'Fotos:R2:Endpoint', 'Fotos:R2:Bucket', 'Fotos:R2:AccessKeyId', 'Fotos:R2:SecretAccessKey')) {
+        $variaveis[$chave] = $null
+        $variaveis[$chave.Replace(':', '__')] = $null
+    }
 }
 $api = $null
 $frontend = $null
@@ -47,12 +66,16 @@ try {
     Write-Host 'SQL Server exclusivo pronto; segredos somente no processo. Desenvolvimento não foi alterado.'
     Push-Location (Join-Path $PSScriptRoot '..')
     try {
-        $alvo = if ($FiltroIntegracao) { 'tests/Locadora.IntegrationTests' } else { 'Locadora.slnx' }
-        $filtro = if ($FiltroIntegracao) { @('--filter', $FiltroIntegracao) } else { @() }
-        dotnet test $alvo --configuration Release --no-restore --logger 'console;verbosity=minimal' @filtro
+        $alvo = if ($FiltroIntegracao -or $R2) { 'tests/Locadora.IntegrationTests' } else { 'Locadora.slnx' }
+        $filtro = if ($R2) { @('--filter', 'TestCategory=R2Real') }
+            elseif ($FiltroIntegracao) { @('--filter', "($FiltroIntegracao)&TestCategory!=R2Real") }
+            else { @('--filter', 'TestCategory!=R2Real&TestCategory!=FotoAmostrasF5&TestCategory!=FotoLimitesF5') }
+        $saida = if ($Detalhado) { 'console;verbosity=detailed' }
+            elseif ($R2) { 'console;verbosity=normal' } else { 'console;verbosity=minimal' }
+        dotnet test $alvo --configuration Release --no-restore --logger $saida @filtro
         if ($LASTEXITCODE -ne 0) { throw 'Testes backend falharam.' }
-        if ($Visual -or $JornadaF3 -or $JornadaF4) {
-            if ($JornadaF3 -or $JornadaF4) {
+        if ($Visual -or $jornada) {
+            if ($jornada) {
                 foreach ($portaVisual in @(4201, 5001)) {
                     $testePorta = [Net.Sockets.TcpListener]::new([Net.IPAddress]::IPv6Any, $portaVisual)
                     try {
@@ -67,18 +90,17 @@ try {
             $env:ASPNETCORE_ENVIRONMENT = 'Development'
             $env:Cors__Origens__0 = 'http://localhost:4201'
             $env:Cors__Origens__1 = 'http://127.0.0.1:4201'
-            $temporario = Join-Path $env:LOCALAPPDATA 'Temp/opencode'
-            $prefixo = if ($JornadaF4) { 'f4' } elseif ($JornadaF3) { 'f3' } else { 'f1' }
+            $prefixo = if ($JornadaF5) { 'f5' } elseif ($JornadaF4) { 'f4' } elseif ($JornadaF3) { 'f3' } else { 'f1' }
             $api = Start-Process dotnet -ArgumentList @('run', '--project', 'src/Locadora.Api', '--configuration', 'Release', '--no-build', '--no-launch-profile', '--urls', 'http://localhost:5001') -PassThru -RedirectStandardOutput (Join-Path $temporario "$prefixo-api.out.log") -RedirectStandardError (Join-Path $temporario "$prefixo-api.err.log")
             $comandoFrontend = 'npm start -- --port 4201 --configuration verificacao-f1'
-            if ($JornadaF3 -or $JornadaF4) { $comandoFrontend += ' --prebundle=false --hmr=false --live-reload=false --watch=false' }
-            if ($JornadaF4) { $comandoFrontend += ' --host 127.0.0.1 --allowed-hosts localhost' }
+            if ($jornada) { $comandoFrontend += ' --prebundle=false --hmr=false --live-reload=false --watch=false' }
+            if ($JornadaF4 -or $JornadaF5) { $comandoFrontend += ' --host 127.0.0.1 --allowed-hosts localhost' }
             $frontend = Start-Process pwsh -WorkingDirectory (Join-Path $PSScriptRoot '../../frontend') -ArgumentList @('-NoProfile', '-Command', $comandoFrontend) -PassThru -RedirectStandardOutput (Join-Path $temporario "$prefixo-frontend.out.log") -RedirectStandardError (Join-Path $temporario "$prefixo-frontend.err.log")
             @{ frontendPid = $frontend.Id; apiPid = $api.Id; container = $container; volume = $volume } |
                 ConvertTo-Json | Set-Content (Join-Path $temporario "$prefixo-visual-processos.json")
             Write-Host "Ambiente visual exclusivo: http://localhost:4201 e API http://localhost:5001. Estado sem segredos em Temp/opencode/$prefixo-visual-processos.json."
-            if ($JornadaF3 -or $JornadaF4) {
-                $origemProntidao = if ($JornadaF4) { 'http://127.0.0.1:4201/' } else { 'http://localhost:4201/' }
+            if ($jornada) {
+                $origemProntidao = if ($JornadaF4 -or $JornadaF5) { 'http://127.0.0.1:4201/' } else { 'http://localhost:4201/' }
                 $urls = @('http://localhost:5001/health', $origemProntidao)
                 foreach ($url in $urls) {
                     $pronto = $false
@@ -99,13 +121,18 @@ try {
                     node (Join-Path $PSScriptRoot '../../e2e/fase4.playwright.cjs')
                     if ($LASTEXITCODE -ne 0) { throw 'A jornada F4 no navegador falhou.' }
                 }
+                if ($JornadaF5) {
+                    node (Join-Path $PSScriptRoot '../../e2e/fase5.playwright.cjs')
+                    if ($LASTEXITCODE -ne 0) { throw 'A jornada F5 no navegador falhou.' }
+                }
             } else { $frontend.WaitForExit() }
         }
     } finally { Pop-Location }
 } finally {
-    if (($JornadaF3 -or $JornadaF4) -and $frontend -and !$frontend.HasExited) { taskkill /PID $frontend.Id /T /F | Out-Null }
+    if ($jornada -and $frontend -and !$frontend.HasExited) { taskkill /PID $frontend.Id /T /F | Out-Null }
     if ($api -and !$api.HasExited) { taskkill /PID $api.Id /T /F | Out-Null }
     # Exclusivamente os recursos sintéticos criados por esta execução.
     docker compose @compose down --volumes 2>$null | Out-Null
+    if (Test-Path -LiteralPath $pastaFotos) { Remove-Item -LiteralPath $pastaFotos -Recurse -Force }
     foreach ($nome in $anteriores.Keys) { [Environment]::SetEnvironmentVariable($nome, $anteriores[$nome]) }
 }

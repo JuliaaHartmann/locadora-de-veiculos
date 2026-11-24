@@ -32,6 +32,7 @@ public sealed partial class LocadoraDbContext(DbContextOptions<LocadoraDbContext
         MapearPessoas(builder);
         MapearPrecos(builder);
         MapearLocacoes(builder);
+        MapearFotos(builder);
         MapearAuditoria(builder);
     }
 
