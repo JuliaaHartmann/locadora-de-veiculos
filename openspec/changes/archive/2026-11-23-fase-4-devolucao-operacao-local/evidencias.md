@@ -60,7 +60,7 @@ As rodadas intermediárias de Playwright não foram contabilizadas como sucesso:
 | **F4-04** | CA-09 e CA-12 em SQL Server real: corridas, versão de preço, falhas com rollback, preço da taxa adicional por todas as diárias, reuso de placa/CNPJ e alterações posteriores sem reescrever o final. |
 | **F4-05** | J-01 a J-05 por teclado nas duas origens, contas de empresas distintas, CORS, revogação, reenvio e histórico, sem foto; paridade e acessibilidade amostral registradas acima. |
 
-O resultado é de operação local, não homologação, publicação ou v1 concluída. Não houve migration em base operacional. O risco da unidade do combustível gás para uso real permanece conforme PRD/TDD. Não foi exercitada restauração operacional após fechamentos; o [contrato](../../../app/backend/docs/contratos-f4.md#migration-e-recuperação) limita o uso do `Down`. A consulta de opções de veículo usa as páginas do histórico para manter a identidade preservada; volume e desempenho não foram medidos.
+O resultado é de operação local, não homologação, publicação ou v1 concluída. Não houve migration em base operacional. O risco da unidade do combustível gás para uso real permanece conforme PRD/TDD. Não foi exercitada restauração operacional após fechamentos; o [contrato](../../../../app/backend/docs/contratos-f4.md#migration-e-recuperação) limita o uso do `Down`. A consulta de opções de veículo usa as páginas do histórico para manter a identidade preservada; volume e desempenho não foram medidos.
 
 ## Inspeção manual — aprovação registrada em 23/11/2026
 
@@ -73,3 +73,10 @@ O solicitante informou que realizou e aprovou a inspeção manual da Fase 4, sem
 - Em `app/frontend`, `npm test -- --watch=false`: 68 testes aprovados em 9 arquivos. `npm run build` e `./node_modules/.bin/tsc.cmd --noEmit --project tsconfig.spec.json` aprovados.
 - `dotnet build app/backend/Locadora.slnx --no-restore -v minimal`: zero erros e avisos. Em `app/backend`, `dotnet ef migrations has-pending-model-changes --project src/Locadora.Infrastructure --startup-project src/Locadora.Api`: sem divergência; aviso de patch da CLI EF, conexão apenas de design.
 - `openspec validate fase-4-devolucao-operacao-local --strict --no-interactive` e `git diff --check`: sem erros.
+
+## Sync e Archive no PR #4 — 23/11/2026
+
+- A change validou em modo estrito antes de ser movida, com os cinco artefatos e as 15 tarefas concluídos. O Sync acrescentou quatro requisitos e atualizou dois na [especificação de Aluguéis](../../../specs/alugueis/spec.md), sem remover requisitos ou cenários. A comparação com a versão anterior e com o delta confirmou 10 requisitos e 37 cenários na especificação principal.
+- `openspec validate --specs --strict --no-interactive`: sete especificações aprovadas, sem falhas, antes e depois do Archive. O Archive preservou a configuração da change e não reaplicou o delta.
+- Verificados 34 links locais relacionados à F4, incluindo âncoras, referências no TDD, nos artefatos e nos protótipos. Os dois HTMLs aprovados permaneceram intactos, e o roteiro de capturas passou a apontar para a pasta arquivada.
+- Após o Archive, `pwsh -NoProfile -File app/backend/scripts/Testar-Integracao.ps1 -JornadaF4` com `F4_CAPTURAS` aprovado: 99 unitários e 86 de integração em SQL Server isolado, J-01 a J-05 nas duas origens e captura dos dois protótipos arquivados. As capturas ficaram fora do repositório.
