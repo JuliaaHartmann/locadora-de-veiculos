@@ -3,7 +3,7 @@ import { afterNextRender, Component, computed, DestroyRef, ElementRef, Injector,
 import { disabled, form, FormField, required } from '@angular/forms/signals';
 import { CadastrosService, formatarMoeda, RespostaComEtag } from '../cadastros.service';
 import {
-  AluguelDetalhe, AlugueisService, ClienteOpcao, ComandoAluguel, CondutorOpcao, DemonstrativoEstimado,
+  AluguelAberto, AlugueisService, ClienteOpcao, ComandoAluguel, CondutorOpcao, DemonstrativoEstimado,
   PlanoContratado, rotuloCliente, rotuloPlano, rotuloSeguro, SeguroEstado, TaxaOpcao, TipoSeguro, VeiculoOpcao,
 } from './alugueis.service';
 import { horaDoContrato, partesDaData, retornoDaTela } from './horario-locacao';
@@ -37,11 +37,11 @@ export class EditorAluguelComponent implements OnInit {
   private previaComando: ComandoAluguel | null = null;
   private retornoOriginal = '';
 
-  readonly original = input<RespostaComEtag<AluguelDetalhe> | null>(null);
+  readonly original = input<RespostaComEtag<AluguelAberto> | null>(null);
   readonly voltar = output<void>();
-  readonly gravado = output<RespostaComEtag<AluguelDetalhe>>();
-  readonly revisaoCarregada = output<RespostaComEtag<AluguelDetalhe>>();
-  readonly atual = signal<RespostaComEtag<AluguelDetalhe> | null>(null);
+  readonly gravado = output<RespostaComEtag<AluguelAberto>>();
+  readonly revisaoCarregada = output<RespostaComEtag<AluguelAberto>>();
+  readonly atual = signal<RespostaComEtag<AluguelAberto> | null>(null);
   readonly modelo = signal({ ...vazio });
   readonly calculando = signal(false);
   readonly gravando = signal(false);
@@ -90,7 +90,7 @@ export class EditorAluguelComponent implements OnInit {
       afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>(seletor)?.focus(), { injector: this.injector });
   }
 
-  async carregar(revisao: RespostaComEtag<AluguelDetalhe> | null = this.atual()) {
+  async carregar(revisao: RespostaComEtag<AluguelAberto> | null = this.atual()) {
     this.atual.set(revisao); this.carregando.set(true); this.erroCarregar.set('');
     const contrato = revisao?.dados;
     try {
@@ -285,9 +285,14 @@ export class EditorAluguelComponent implements OnInit {
     try {
       const revisao = await this.api.obter(atual.dados.id);
       if (!this.ativo) return;
+      if (revisao.dados.estado !== 'EmAberto') {
+        this.erro({ geral: 'O aluguel foi concluído. Volte à lista para consultar o demonstrativo final.' });
+        return;
+      }
       this.desatualizado.set(false); this.erros.set({});
-      this.revisaoCarregada.emit(revisao);
-      await this.carregar(revisao);
+      const aberto = { ...revisao, dados: revisao.dados };
+      this.revisaoCarregada.emit(aberto);
+      await this.carregar(aberto);
       this.focar('#aluguel-cliente');
     } catch {
       if (this.ativo) this.erro({ geral: 'Não foi possível recarregar o contrato. Tente novamente.' });

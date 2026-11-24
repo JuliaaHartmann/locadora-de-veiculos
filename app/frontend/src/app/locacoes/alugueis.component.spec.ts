@@ -25,6 +25,7 @@ describe('Aluguéis F3', () => {
   const api = {
     listar: vi.fn(), obter: vi.fn(), clientes: vi.fn(), condutores: vi.fn(), veiculos: vi.fn(), planos: vi.fn(),
     taxas: vi.fn(), seguro: vi.fn(), estimar: vi.fn(), editar: vi.fn(), criar: vi.fn(),
+    preverDevolucao: vi.fn(), confirmarDevolucao: vi.fn(), veiculosDoHistorico: vi.fn(), ocultar: vi.fn(),
   };
   let fixture: ComponentFixture<AlugueisComponent>;
   let el: HTMLElement;
@@ -54,6 +55,7 @@ describe('Aluguéis F3', () => {
     api.obter.mockResolvedValue(detalhe);
     api.clientes.mockResolvedValue([contrato.cliente]); api.condutores.mockResolvedValue([contrato.condutor]);
     api.veiculos.mockResolvedValue([veiculo]); api.planos.mockResolvedValue([plano]);
+    api.veiculosDoHistorico.mockResolvedValue([veiculo]); api.ocultar.mockResolvedValue(undefined);
     api.taxas.mockResolvedValue([]); api.seguro.mockResolvedValue({ precoDiario: null, configurado: false });
     api.estimar.mockResolvedValue(estimativa);
     api.editar.mockResolvedValue(detalhe); api.criar.mockResolvedValue(detalhe);
@@ -70,11 +72,11 @@ describe('Aluguéis F3', () => {
     expect(el.textContent).toContain('Não foi possível consultar os aluguéis');
     api.listar.mockResolvedValueOnce({ items: [], page: 1, pageSize: 20, total: 0 });
     clicar('Tentar novamente'); await render();
-    expect(el.textContent).toContain('Nenhum aluguel em aberto encontrado');
+    expect(el.textContent).toContain('Nenhum aluguel encontrado');
     await campo('filtro-veiculo', 'v1'); await campo('filtro-de', '23/11/2026'); clicar('Filtrar'); await render();
-    expect(api.listar).toHaveBeenLastCalledWith(1, { veiculoId: 'v1', saidaDe: '2026-11-23', saidaAte: '' });
+    expect(api.listar).toHaveBeenLastCalledWith(1, { estado: '', veiculoId: 'v1', saidaDe: '2026-11-23', saidaAte: '', incluirOcultos: undefined });
     clicar('Próxima'); await render();
-    expect(api.listar).toHaveBeenLastCalledWith(2, { veiculoId: 'v1', saidaDe: '2026-11-23', saidaAte: '' });
+    expect(api.listar).toHaveBeenLastCalledWith(2, { estado: '', veiculoId: 'v1', saidaDe: '2026-11-23', saidaAte: '', incluirOcultos: undefined });
     clicar('Consultar'); await render();
     expect(el.textContent).toContain('Demonstrativo estimado');
     expect(el.textContent).toContain('Pendente');
@@ -139,6 +141,91 @@ describe('Aluguéis F3', () => {
     expect(el.querySelector<HTMLSelectElement>('#aluguel-veiculo')!.value).toBe('');
     expect(el.querySelector<HTMLButtonElement>('#confirmar-aluguel')!.disabled).toBe(true);
     expect(document.activeElement?.id).toBe('erros-contratacao');
+  });
+
+  it('mostra o final confirmado e não oferece edição nem outra devolução', async () => {
+    const final = {
+      retornoReal: '2026-11-24T09:01:00-03:00', hodometroFinal: 600, litrosRestantes: '40',
+      diarias: 2, kmRodados: 100, total: '354.00', caucao: '1000.00',
+      plano: { parametros: plano, franquiaTotalKm: 200, kmCobrados: 0, subtotal: { valor: '290.00' } },
+      adicionais: [], combustivel: { tipo: 'Gasolina', litrosARepor: '10', precoPorLitro: '6', parcela: { valor: '60.00' } },
+    };
+    api.preverDevolucao.mockResolvedValue({ etag: 'v1', dados: { versaoAceita: 'p1', demonstrativo: final } });
+    api.confirmarDevolucao.mockResolvedValue({ etag: 'v2', dados: { id: 'a1', estado: 'Concluido', final } });
+    await render(); clicar('Consultar'); await render(); clicar('Registrar devolução'); await render();
+    await campo('devolucao-retornoReal', '24/11/2026 09:01');
+    await campo('devolucao-hodometroFinal', '600'); await campo('devolucao-litrosRestantes', '40');
+    clicar('Calcular prévia'); await render(); clicar('Confirmar devolução'); await render();
+    expect(el.textContent).toContain('Demonstrativo final');
+    expect(el.textContent).toContain('Retorno registrado');
+    expect(el.textContent).toContain('R$ 354,00');
+    expect(el.textContent).not.toContain('Editar aluguel');
+    expect(el.textContent).not.toContain('Registrar devolução');
+    expect(document.activeElement?.id).toBe('aviso-alugueis');
+  });
+
+  it('oculta com ETag, recupera o mesmo final com inclusão explícita e não permite ocultar de novo', async () => {
+    const resumoFinal = { ...resumo, id: 'a2', estado: 'Concluido', totalFinal: '354.00' };
+    const final = {
+      retornoReal: '2026-11-24T09:01:00-03:00', hodometroFinal: 600, litrosRestantes: '40',
+      diarias: 2, kmRodados: 100, total: '354.00', caucao: '1000.00',
+      plano: { parametros: plano, franquiaTotalKm: 200, kmCobrados: 0, subtotal: { valor: '290.00' } },
+      adicionais: [], combustivel: { tipo: 'Gasolina', litrosARepor: '10', precoPorLitro: '6', parcela: { valor: '60.00' } },
+    };
+    const concluido = { ...contrato, id: 'a2', estado: 'Concluido', final };
+    api.listar.mockImplementation(async (_pagina, filtros) => ({
+      items: filtros.incluirOcultos ? [{ ...resumoFinal, oculto: true }] :
+        api.ocultar.mock.calls.length ? [resumo] : [resumo, resumoFinal],
+      page: 1, pageSize: 20, total: filtros.incluirOcultos || api.ocultar.mock.calls.length ? 1 : 2,
+    }));
+    api.obter.mockImplementation(async (id, incluir) => id === 'a2'
+      ? { dados: { ...concluido, oculto: incluir }, etag: incluir ? 'v3' : 'v2' } : detalhe);
+    await render();
+    expect(el.textContent).toContain('Estimativa');
+    expect(el.textContent).toContain('Total final');
+    el.querySelector<HTMLButtonElement>('[data-consultar="a2"]')!.click(); await render();
+    expect(el.textContent).toContain('R$ 354,00');
+    expect(el.textContent).not.toContain('Editar aluguel');
+    clicar('Ocultar da operação'); await render();
+    expect(api.ocultar).toHaveBeenCalledWith('a2', 'v2');
+    expect(document.activeElement?.id).toBe('aviso-alugueis');
+    expect(el.querySelector('[data-consultar="a2"]')).toBeNull();
+    await campo('filtro-estado', 'Concluido'); await campo('filtro-de', '23/11/2026');
+    el.querySelector<HTMLInputElement>('#filtro-ocultos')!.click();
+    clicar('Filtrar'); await render();
+    expect(api.listar).toHaveBeenLastCalledWith(1, expect.objectContaining({ estado: 'Concluido', incluirOcultos: 'true' }));
+    expect(document.activeElement?.id).toBe('resultado-alugueis');
+    expect(el.textContent).toContain('Oculto');
+    clicar('Consultar'); await render();
+    expect(api.obter).toHaveBeenLastCalledWith('a2', true);
+    expect(el.textContent).toContain('R$ 354,00');
+    expect(el.textContent).not.toContain('Ocultar da operação');
+    expect(el.textContent).not.toContain('Registrar devolução');
+  });
+
+  it('focaliza o erro do filtro ou ETag da ocultação sem oferecer ação indevida', async () => {
+    await render(); await campo('filtro-ate', '31/02/2026'); clicar('Filtrar'); await render();
+    expect(document.activeElement?.id).toBe('erro-filtro-alugueis');
+    expect(el.querySelector('#filtro-ate')?.getAttribute('aria-describedby')).toContain('erro-filtro-ate');
+    clicar('Consultar'); await render();
+    expect(el.textContent).not.toContain('Ocultar da operação');
+    fixture.componentInstance.detalhe.set({ etag: 'v2', dados: {
+      ...contrato, estado: 'Concluido',
+      final: { retornoReal: contrato.retornoPrevisto, hodometroFinal: 500, litrosRestantes: '50',
+        diarias: 2, kmRodados: 0,
+        plano: { parametros: plano, kmCobrados: 0, franquiaTotalKm: 200, diariasBruto: '290', quilometragemBruto: '0',
+          subtotal: { bruto: '290', valor: '290.00' } },
+        combustivel: { tipo: 'Gasolina', litrosARepor: '0', precoPorLitro: '6', versaoId: 'c', ordem: 1,
+          inicioVigenciaUtc: contrato.saida, parcela: { bruto: '0', valor: '0.00' } },
+        versaoRegra: 'RN/v1', total: '290.00', caucao: '1000.00', adicionais: [], multa: null,
+      },
+    } });
+    api.ocultar.mockRejectedValueOnce(new HttpErrorResponse({ status: 412 }));
+    await render(); clicar('Ocultar da operação'); await render();
+    expect(document.activeElement?.id).toBe('erro-ocultar-aluguel');
+    expect(el.textContent).toContain('Volte à lista e consulte novamente');
+    expect([...el.querySelectorAll('button')].find(x => x.textContent?.trim() === 'Ocultar da operação')?.disabled).toBe(true);
+    expect(el.textContent).toContain('Demonstrativo final');
   });
 });
 
