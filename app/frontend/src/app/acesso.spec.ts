@@ -73,21 +73,130 @@ describe('Acesso da F1', () => {
     expect(TestBed.inject(Router).navigateByUrl).not.toHaveBeenCalled();
   });
 
-  it('autentica por login e mantém tokens somente no serviço em memória', async () => {
+  it('impede login vazio, associa os erros aos campos e foca o resumo', async () => {
+    const fixture = TestBed.createComponent(LoginComponent);
+    fixture.detectChanges();
+    const tela: HTMLElement = fixture.nativeElement;
+    for (const id of ['usuario', 'senha']) {
+      const campo = tela.querySelector<HTMLInputElement>(`#${id}`)!;
+      expect(campo.getAttribute('aria-invalid')).toBe('false');
+      expect(campo.getAttribute('aria-describedby')).toBe(`erro-${id}`);
+    }
+
+    await fixture.componentInstance.entrar();
+    fixture.detectChanges();
+
+    http.expectNone(`${api}/session/login`);
+    const resumo = tela.querySelector('#resumo-erros-login[role=alert]');
+    expect(resumo?.textContent).toBe('Informe usuário e senha.');
+    for (const [id, rotulo] of [['usuario', 'Usuário'], ['senha', 'Senha']]) {
+      const campo = tela.querySelector<HTMLInputElement>(`#${id}`)!;
+      expect(campo.labels?.[0].textContent).toBe(rotulo);
+      expect(campo.getAttribute('aria-invalid')).toBe('true');
+      expect(campo.getAttribute('aria-describedby')).toBe(`erro-${id} resumo-erros-login`);
+      expect(tela.querySelector(`#erro-${id}`)?.textContent?.trim()).not.toBe('');
+    }
+    expect(document.activeElement).toBe(resumo);
+  });
+
+  it.each([
+    ['usuario', { usuario: '', senha: '12345678' }, 'senha'],
+    ['senha', { usuario: 'admin', senha: '' }, 'usuario'],
+  ] as const)('associa apenas %s inválido ao resumo e remove a referência após a correção', async (
+    invalido, dados, valido,
+  ) => {
+    const fixture = TestBed.createComponent(LoginComponent);
+    fixture.componentInstance.dados.set(dados);
+    fixture.detectChanges();
+
+    await fixture.componentInstance.entrar();
+    fixture.detectChanges();
+    http.expectNone(`${api}/session/login`);
+
+    const tela: HTMLElement = fixture.nativeElement;
+    const campoInvalido = tela.querySelector<HTMLInputElement>(`#${invalido}`)!;
+    const campoValido = tela.querySelector<HTMLInputElement>(`#${valido}`)!;
+    expect(campoInvalido.getAttribute('aria-invalid')).toBe('true');
+    expect(campoInvalido.getAttribute('aria-describedby')).toBe(`erro-${invalido} resumo-erros-login`);
+    expect(campoValido.getAttribute('aria-invalid')).toBe('false');
+    expect(campoValido.getAttribute('aria-describedby')).toBe(`erro-${valido}`);
+
+    campoInvalido.value = invalido === 'usuario' ? 'admin' : '12345678';
+    campoInvalido.dispatchEvent(new Event('input', { bubbles: true }));
+    fixture.detectChanges();
+
+    expect(campoInvalido.getAttribute('aria-invalid')).toBe('false');
+    expect(campoInvalido.getAttribute('aria-describedby')).toBe(`erro-${invalido}`);
+    expect(tela.querySelector(`#erro-${invalido}`)?.textContent?.trim()).toBe('');
+  });
+
+  it('autentica por login, bloqueia reenvio e mantém tokens somente em memória', async () => {
     const fixture = TestBed.createComponent(LoginComponent);
     fixture.detectChanges();
     const local = vi.spyOn(Storage.prototype, 'setItem');
-    fixture.componentInstance.dados.set({ usuario: 'admin', senha: '12345678' });
-    const envio = fixture.componentInstance.entrar();
-    http.expectOne(`${api}/session/login`).flush(tokens);
-    await envio;
-    expect(TestBed.inject(SessaoService).autenticada()).toBe(true);
-    expect(fixture.componentInstance.dados().senha).toBe('');
-    expect(local).not.toHaveBeenCalled();
-    local.mockRestore();
+    try {
+      fixture.componentInstance.dados.set({ usuario: 'admin', senha: '12345678' });
+      const envio = fixture.componentInstance.entrar();
+      const pedido = http.expectOne({ method: 'POST', url: `${api}/session/login` });
+      expect(pedido.request.body).toEqual({ username: 'admin', password: '12345678' });
+      expect(pedido.request.headers.has('Authorization')).toBe(false);
+      fixture.detectChanges();
+      const botao: HTMLButtonElement = fixture.nativeElement.querySelector('button[type=submit]');
+      expect(botao.disabled).toBe(true);
+      const tela: HTMLElement = fixture.nativeElement;
+      expect(tela.querySelector('#usuario')?.getAttribute('aria-describedby')).toBe('erro-usuario');
+      expect(tela.querySelector('#senha')?.getAttribute('aria-describedby')).toBe('erro-senha');
+      await fixture.componentInstance.entrar();
+      http.expectNone(`${api}/session/login`);
+      pedido.flush(tokens);
+      await envio;
+      expect(TestBed.inject(SessaoService).autenticada()).toBe(true);
+      expect(fixture.componentInstance.dados()).toEqual({ usuario: 'admin', senha: '' });
+      expect(TestBed.inject(Router).navigateByUrl).toHaveBeenCalledWith('/');
+      expect(local).not.toHaveBeenCalled();
+    } finally {
+      local.mockRestore();
+    }
     const novaSessao = new SessaoService(TestBed.inject(HttpClient));
     expect(novaSessao.autenticada()).toBe(false);
     expect(novaSessao.obterAccessToken()).toBeUndefined();
+  });
+
+  it.each([401, 429, 503])('mostra erro genérico de login para %s e recupera o foco', async status => {
+    const fixture = TestBed.createComponent(LoginComponent);
+    fixture.detectChanges();
+    fixture.componentInstance.dados.set({ usuario: 'admin', senha: '12345678' });
+    const envio = fixture.componentInstance.entrar();
+    http.expectOne(`${api}/session/login`).flush({ detail: 'Detalhe interno' }, { status, statusText: 'Erro' });
+    await envio;
+    fixture.detectChanges();
+
+    const tela: HTMLElement = fixture.nativeElement;
+    const resumo = tela.querySelector('#resumo-erros-login[role=alert]');
+    expect(resumo?.textContent).toBe('Não foi possível autenticar.');
+    expect(document.activeElement).toBe(resumo);
+    expect(tela.querySelector('#usuario')?.getAttribute('aria-invalid')).toBe('false');
+    expect(tela.querySelector('#usuario')?.getAttribute('aria-describedby')).toBe('erro-usuario');
+    expect(tela.querySelector('#senha')?.getAttribute('aria-invalid')).toBe('true');
+    expect(tela.querySelector('#senha')?.getAttribute('aria-describedby')).toBe('erro-senha resumo-erros-login');
+    expect(tela.querySelector('#erro-senha')?.textContent?.trim()).toBe('Informe a senha.');
+    expect(tela.querySelector<HTMLButtonElement>('button[type=submit]')?.disabled).toBe(false);
+    expect(fixture.componentInstance.dados()).toEqual({ usuario: 'admin', senha: '' });
+    expect(TestBed.inject(SessaoService).autenticada()).toBe(false);
+    expect(TestBed.inject(Router).navigateByUrl).not.toHaveBeenCalled();
+  });
+
+  it('mostra o aviso após o cadastro e preserva o link de registro', () => {
+    const sessao = TestBed.inject(SessaoService);
+    sessao.aviso.set('Empresa criada. Entre com seu usuário e senha.');
+    const fixture = TestBed.createComponent(LoginComponent);
+    fixture.detectChanges();
+
+    const tela: HTMLElement = fixture.nativeElement;
+    expect(tela.querySelector('[role=status]')?.textContent).toBe('Empresa criada. Entre com seu usuário e senha.');
+    expect(tela.querySelector('a[href="/registro"]')?.textContent).toBe('Criar empresa');
+    expect(sessao.aviso()).toBe('');
+    expect(sessao.autenticada()).toBe(false);
   });
 
   it('não confirma logout quando falha a revogação remota', async () => {

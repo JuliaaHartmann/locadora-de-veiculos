@@ -5,26 +5,12 @@ import { Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { CONFIGURACAO_API } from './configuracao-api';
 import { SessaoService, Tokens } from './sessao.service';
-import { LucideLogIn } from '@lucide/angular';
 
 @Component({
   standalone: true,
-  imports: [FormField, RouterLink, LucideLogIn],
-  template: `<main><h1>Entrar</h1><p role="status">{{ aviso }}</p>
-    <form (submit)="$event.preventDefault(); entrar()" novalidate>
-      <label for="usuario">Usuário</label>
-      <input id="usuario" autocomplete="username" [formField]="formulario.usuario"
-        [attr.aria-invalid]="tentativa() && formulario.usuario().invalid()" aria-describedby="erro-usuario">
-      <span id="erro-usuario">@if (tentativa() && formulario.usuario().invalid()) { Informe o usuário. }</span>
-      <label for="senha">Senha</label>
-      <input id="senha" type="password" autocomplete="current-password" [formField]="formulario.senha"
-        [attr.aria-invalid]="tentativa() && formulario.senha().invalid()" aria-describedby="erro-senha">
-      <span id="erro-senha">@if (tentativa() && formulario.senha().invalid()) { Informe a senha. }</span>
-      <button type="submit" [disabled]="enviando()">
-        <svg lucideLogIn aria-hidden="true" focusable="false" class="h-5 w-5"></svg> Entrar
-      </button>
-      <p #resumo tabindex="-1" role="alert">{{ erro() }}</p>
-    </form><p>Primeiro acesso? <a routerLink="/registro">Criar empresa</a></p></main>`,
+  imports: [FormField, RouterLink],
+  templateUrl: './login.component.html',
+  styleUrl: './login.component.css',
 })
 export class LoginComponent {
   readonly dados = signal({ usuario: '', senha: '' });
