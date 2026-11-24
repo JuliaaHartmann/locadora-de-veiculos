@@ -1,0 +1,148 @@
+.layout-login {
+  --oliva: #606b45;
+  --creme: #e9e1d0;
+  --off-white: #f5f0e6;
+  --foco: #374526;
+  --erro: #8b3427;
+  display: grid;
+  grid-template-columns: minmax(0, 1.04fr) minmax(0, 1fr);
+  min-height: 100vh;
+  min-height: 100svh;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: #30332b;
+}
+
+.identidade, .painel-acesso {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+}
+
+.identidade { background: var(--oliva); padding: 2rem 1.5rem 10rem; }
+.logotipo { position: relative; z-index: 1; width: min(78%, 23.56rem); height: auto; }
+.paisagem { position: absolute; inset: auto 0 0; width: 100%; height: min(38%, 21rem); }
+
+.painel-acesso {
+  background: var(--creme);
+  padding: clamp(1.75rem, 5vw, 5rem) clamp(1.5rem, 4vw, 4.75rem);
+}
+
+.painel-acesso::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: radial-gradient(ellipse at 102% -10%, #89916a2e 0 27%, transparent 27.3%),
+    radial-gradient(ellipse at 105% 110%, #89916a26 0 23%, transparent 23.3%);
+  content: '';
+}
+
+.cartao-acesso {
+  display: grid;
+  gap: 1.3rem;
+  width: min(100%, 28rem);
+  padding: clamp(1.5rem, 4vw, 3rem);
+  border: 1px solid #d6cdba;
+  border-radius: clamp(1rem, 2.2vw, 1.75rem);
+  background: var(--off-white);
+  box-shadow: 0 1.25rem 3.5rem #30332b18;
+}
+
+.cabecalho-acesso { display: grid; justify-items: center; gap: 0.65rem; }
+.selo-acesso {
+  display: grid;
+  place-items: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border: 1px solid #89916a61;
+  border-radius: 1rem;
+  background: #89916a24;
+  color: var(--foco);
+}
+
+h1 {
+  font: 600 clamp(2.15rem, 3.7vw, 3rem)/1.04 Georgia, 'Times New Roman', serif;
+  letter-spacing: -0.04em;
+}
+
+p, form { margin: 0; }
+form { position: relative; min-width: 0; gap: 0.95rem; }
+.campo { display: grid; min-width: 0; gap: 0.3rem; }
+label { font-size: 0.9375rem; font-weight: 650; }
+.controle-campo { position: relative; min-width: 0; }
+.icone-campo {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 0.8rem;
+  width: 1.125rem;
+  height: 1.125rem;
+  transform: translateY(-50%);
+  color: var(--oliva);
+  pointer-events: none;
+}
+
+input {
+  display: block;
+  min-width: 0;
+  min-height: 3rem;
+  border-color: #827d6b;
+  border-radius: 0.65rem;
+  padding: 0.6rem 0.8rem 0.6rem 2.5rem;
+  color: inherit;
+}
+
+input[aria-invalid='true'] { border-color: var(--erro); }
+.erro-campo { color: var(--erro); font-size: 0.875rem; }
+.erro-campo:empty { display: none; }
+.aviso, .resumo-erro {
+  border: 1px solid currentColor;
+  border-radius: 0.6rem;
+  padding: 0.65rem 0.8rem;
+  overflow-wrap: anywhere;
+  font-size: 0.9rem;
+}
+.aviso { color: var(--foco); background: #89916a1c; }
+.aviso:empty, .resumo-erro:empty {
+  /* Preserva a região viva e permite o foco imediato antes da renderização do erro. */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.resumo-erro { color: var(--erro); background: #b9664517; }
+
+.botao-entrar {
+  gap: 0.55rem;
+  min-height: 3.15rem;
+  margin: 0;
+  border-radius: 0.65rem;
+  background: var(--oliva);
+  padding: 0.65rem 1rem;
+  font-weight: 700;
+}
+.botao-entrar:hover:enabled { background: var(--foco); }
+.botao-entrar:disabled { background: #515942; opacity: 1; }
+.indicador-envio { width: 1.05rem; height: 1.05rem; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .indicador-envio { animation: girar 0.85s linear infinite; }
+  @keyframes girar { to { transform: rotate(360deg); } }
+}
+
+.registro { text-align: center; color: #535749; font-size: 0.9375rem; }
+a { color: var(--foco); font-weight: 700; text-underline-offset: 0.2em; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible, .resumo-erro:focus { outline: 3px solid var(--foco); outline-offset: 4px; }
+
+@media (max-width: 48rem) {
+  .layout-login { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; }
+  .identidade { padding: 1.5rem 1rem 6rem; }
+  .painel-acesso { padding-inline: clamp(1rem, 4vw, 2rem); }
+}

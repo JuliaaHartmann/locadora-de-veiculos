@@ -1,0 +1,86 @@
+<main class="layout-login" aria-labelledby="titulo-login">
+  <div class="identidade">
+    <img class="logotipo" width="377" height="318" alt="LocaCar — Locadora de Veículos"
+      src="login/logo-transparente.png">
+    <svg class="paisagem" viewBox="0 0 800 320" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+      <defs>
+        <linearGradient id="login-sombra-colina" x2="0" y2="1">
+          <stop stop-color="#89916A" stop-opacity=".66"/>
+          <stop offset="1" stop-color="#606B45"/>
+        </linearGradient>
+      </defs>
+      <path fill="url(#login-sombra-colina)" d="M0 91C108 19 199 39 316 84c100 38 159 48 236 22 89-30 154-76 248-66v280H0Z"/>
+      <path fill="#4C5738" d="M0 163c109-48 195-28 306 4 83 24 163 30 250-1 88-31 164-47 244-38v192H0Z"/>
+      <path fill="#434F32" d="M0 201c41-37 88-38 126-16 28-17 60-13 81 6 44-16 86-12 125 4l129 7c50-29 97-33 136-17 58-30 119-29 203-7v142H0Z"/>
+      <path fill="#364228" d="M0 275c119-56 292-76 525-78-115 7-169 21-171 42-4 15 22 44 146 81H0Z"/>
+      <path fill="#BA7C52" d="M0 276c123-57 302-77 590-81C314 204 115 234 0 292Z"/>
+      <path fill="#BA7C52" d="M800 320H524c-124-32-173-58-173-81 0-27 65-38 174-42-85 9-146 25-143 41 6 23 192 51 418 82Z"/>
+    </svg>
+  </div>
+  <section class="painel-acesso" aria-labelledby="titulo-login">
+    <div class="cartao-acesso">
+      <header class="cabecalho-acesso">
+        <div class="selo-acesso" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+            <rect x="5" y="10" width="14" height="11" rx="3"/>
+            <path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v2"/>
+          </svg>
+        </div>
+        <h1 id="titulo-login">Entrar</h1>
+      </header>
+      <p class="aviso" role="status">{{ aviso }}</p>
+      <form (submit)="$event.preventDefault(); entrar()" novalidate>
+        <div class="campo">
+          <label for="usuario">Usuário</label>
+          <div class="controle-campo">
+            <svg class="icone-campo" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"
+              aria-hidden="true" focusable="false">
+              <circle cx="12" cy="8" r="3.5"/>
+              <path d="M5 20v-1a6 6 0 0 1 6-6h2a6 6 0 0 1 6 6v1"/>
+            </svg>
+            <input id="usuario" autocomplete="username" [formField]="formulario.usuario"
+              [attr.aria-invalid]="tentativa() && formulario.usuario().invalid()"
+              [attr.aria-describedby]="tentativa() && formulario.usuario().invalid() && erro()
+                ? 'erro-usuario resumo-erros-login' : 'erro-usuario'">
+          </div>
+          <span class="erro-campo" id="erro-usuario">@if (tentativa() && formulario.usuario().invalid()) { Informe o usuário. }</span>
+        </div>
+        <div class="campo">
+          <label for="senha">Senha</label>
+          <div class="controle-campo">
+            <svg class="icone-campo" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"
+              aria-hidden="true" focusable="false">
+              <rect x="5" y="10" width="14" height="11" rx="3"/>
+              <path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v2"/>
+            </svg>
+            <input id="senha" type="password" autocomplete="current-password" [formField]="formulario.senha"
+              [attr.aria-invalid]="tentativa() && formulario.senha().invalid()"
+              [attr.aria-describedby]="tentativa() && formulario.senha().invalid() && erro()
+                ? 'erro-senha resumo-erros-login' : 'erro-senha'">
+          </div>
+          <span class="erro-campo" id="erro-senha">@if (tentativa() && formulario.senha().invalid()) { Informe a senha. }</span>
+        </div>
+        <button class="botao-entrar" type="submit" [disabled]="enviando()">
+          @if (enviando()) {
+            <svg class="indicador-envio" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2.5" stroke-linecap="round" aria-hidden="true" focusable="false">
+              <path d="M12 3a9 9 0 1 1-9 9"/>
+            </svg>
+          } @else {
+            <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+              aria-hidden="true" focusable="false">
+              <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4m-2-9H3m6-4 4 4-4 4"/>
+            </svg>
+          }
+          Entrar
+        </button>
+        <p #resumo id="resumo-erros-login" class="resumo-erro" tabindex="-1" role="alert">{{ erro() }}</p>
+      </form>
+      <p class="registro">Primeiro acesso? <a routerLink="/registro">Criar empresa</a></p>
+    </div>
+  </section>
+</main>

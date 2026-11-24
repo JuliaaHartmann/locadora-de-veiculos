@@ -1,0 +1,20 @@
+# Verificações do protótipo de login
+
+**Data:** 2026-11-24. **Escopo:** proposta, delta e protótipo HTML, revisados para desktops e notebooks. Não são evidências da implementação nem substituem a aprovação visual.
+
+| Verificação | Resultado |
+| --- | --- |
+| Compatibilidade de escopo | A consulta ao PRD, ao TDD e às specs em `openspec/specs/` não identificou exigência de versão para celular ou tablet. O recorte desktop mantém RNF-04 e CA-11, as decisões de acessibilidade do TDD e a verificação de zoom prevista na seção 7.1. |
+| Git | Na abertura da change, `git fetch origin` e `git rev-list --left-right --count main...origin/main` retornaram equivalência (`0 0`), com árvore limpa. A revisão foi feita na mesma branch local `feat/redesign-visual`, sem commits. |
+| `openspec schema validate prototype-first` e `openspec validate redesign-visual-login --type change --strict` | Schema e change válidos. A delta acrescenta somente a apresentação da tela de login em desktops e notebooks à capacidade `account-access`. |
+| `openspec status --change redesign-visual-login` | Proposta, specs e protótipo reconhecidos. Design e tarefas ainda não criados, aguardando avaliação visual. |
+| Integridade dos recursos | O SHA-256 do PNG decodificado do HTML coincide com `logo-transparente.png`. Tailwind CSS 4.3.5 conferido com o pacote oficial e o lockfile; o HTML contém apenas o CSS já compilado e a licença, sem precisar de build para abrir. |
+| Abertura em Edge 157.0.4341.60 via `file://`, rede desativada | O protótipo revisado abriu sem exceções de página e sem requisições HTTP. Ida ao registro, ida ao painel e retorno do registro continuaram simulados localmente. |
+| Variação de janela desktop no Edge | `1920×1080`, `1440×900`, `1366×768` e `1024×768`: duas colunas. `683×384` e `512×384`: larguras úteis reduzidas para representar o efeito do zoom de 200% sobre áreas de `1366×768` e `1024×768`; os dois painéis passaram para uma coluna, sem ocultar a paisagem. Em todas as larguras: sem rolagem horizontal, logotipo proporcional sobre `#606B45` e painel do formulário em `#E9E1D0`. Capturas de `1440×900` e `683×384` inspecionadas. |
+| Sinalização da estrada — refinamento final | A remoção completa das faixas, sem substituição, precede a aprovação visual e substitui o refinamento de sinalização da rodada anterior. A comparação SHA-256 confirmou que o HTML resultante é idêntico ao anterior após excluir apenas o elemento SVG das faixas. A abertura offline no Edge 157.0.4341.60 e a inspeção de uma captura em `1440×900` confirmaram a pista sem faixas, com a curva, os dois contornos terracota e a paisagem preservados. A change passou novamente na validação estrita do OpenSpec. |
+| Formulário e interação no Edge | Título menor com a mesma tipografia e cor. Conferidos rótulos associados, espaçamento entre ícones e área de texto, ícones decorativos fora da ordem de foco, Tab e Enter e foco visível. Também conferidos: campos vazios com erro associado e foco no resumo, espera sem reenvio, falha genérica com senha limpa e usuário preservado, sucesso simulado, aviso de retorno e link de registro. |
+| Pares de contraste calculados | Branco sobre oliva do botão: `5,70:1`; carvão sobre off-white: `11,31:1`; cor de erro sobre off-white: `7,06:1`; foco sobre off-white: `9,06:1`; borda de campo sobre branco: `4,12:1`. São verificações de pares específicos, não uma auditoria de acessibilidade. |
+
+**Limites da rodada técnica do protótipo:** foram emuladas áreas de visualização desktop; não foi usado zoom nativo de 200% nem leitor de tela. Não foram executados build ou testes da aplicação nesta rodada. O HTML usa dados fictícios e não encena telas completas de registro ou painel; apenas indica o destino.
+
+**Aprovação posterior:** a usuária aprovou definitivamente o protótipo HTML com a estrada sem faixas e os contornos em `#BA7C52`. A aprovação da implementação e a avaliação com o Narrador no sistema constam separadamente nas [evidências da implementação](evidencias-implementacao.md#validação-final-pela-usuária).

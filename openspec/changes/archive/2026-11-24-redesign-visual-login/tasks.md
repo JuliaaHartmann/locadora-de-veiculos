@@ -1,0 +1,15 @@
+# Tarefas — redesign visual do login
+
+Referências: [proposta](proposal.md#what-changes), [delta de `account-access`](specs/account-access/spec.md), [protótipo desktop aprovado](prototypes/login.html) e [design](design.md). A decisão final é a estrada **sem faixas**, com contornos em `#BA7C52`. As verificações das tarefas concluídas e a validação relatada pela usuária estão nas [evidências da implementação](evidencias-implementacao.md).
+
+## 1. Apresentação isolada e regressão do componente
+
+- [x] 1.1 Integrar o PNG aprovado como asset em `app/frontend/public/` e reproduzir a paisagem e os ícones decorativos do [protótipo](prototypes/login.html), conforme D-02. Verificar o SHA-256 do PNG contra o design, o carregamento local, as proporções e a correspondência geométrica do SVG, inclusive a ausência de faixas ou substitutos.
+- [x] 1.2 Aplicar a composição, a tipografia, a paleta, os espaçamentos e os estados visuais do [protótipo](prototypes/login.html) no `LoginComponent`, com estilos locais e a reorganização prevista para janela desktop estreita ou zoom (D-01 e D-03). Verificar no navegador que paisagem, cartão, rótulos e controles correspondem à referência, que ícones não recebem foco nem se sobrepõem ao texto e que nenhum elemento de avaliação do HTML foi incorporado.
+- [x] 1.3 Complementar `app/frontend/src/app/acesso.spec.ts` e executar `npm test -- --watch=false` em `app/frontend`. Verificar campos vazios sem chamada HTTP, associação de erros e foco no resumo, bloqueio de reenvio, corpo exato `{ username, password }`, mensagem genérica, senha limpa em sucesso e falha, usuário preservado na falha, sessão em memória e navegação/aviso existentes (D-03 e DT-14).
+
+## 2. Paridade e verificações integradas
+
+- [x] 2.1 Conferir a paridade em ambos os sentidos entre [delta](specs/account-access/spec.md), [protótipo](prototypes/login.html) e tela implementada usando o [mapa do design](design.md#rastreabilidade): todos os cenários e elementos de produto previstos devem estar presentes, sem controles ou fluxos extras. Comparar em larguras de desktop/notebook, em janela estreita e com zoom nativo de 200%; verificar ausência de rolagem horizontal, contraste, legibilidade, navegação por teclado, foco, rótulos, ícones, aviso, erro e espera. Registrar dimensões, navegador e limitações (D-04).
+- [x] 2.2 Reexecutar `app/e2e/fase1.playwright.js` no ambiente isolado já previsto para F1, com dados fictícios. Confirmar registro → aviso no login, falha e sucesso de autenticação, link de registro via teclado, perda da sessão após recarga e logout. Conferir também que registro, painel e navegação autenticada não receberam estilos do login; não alterar backend nem expor credenciais ou tokens nas evidências.
+- [x] 2.3 Executar `npm run build` em `app/frontend` e `openspec validate redesign-visual-login --type change --strict` na raiz. Revisar o diff para confirmar que código, assets e testes se limitam ao recorte aprovado e que o hash do protótipo continua igual ao do design. Registrar os comandos, resultados e eventuais bloqueios da implementação; não usar as evidências do protótipo como prova de execução na aplicação.
