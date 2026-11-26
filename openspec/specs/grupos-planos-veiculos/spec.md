@@ -153,3 +153,51 @@ As telas de frota SHALL oferecer estados de carregamento, vazio e erro, paginaç
 #### Scenario: Cadastro confirmado ou rejeitado
 - **WHEN** o administrador salva ou exclui um cadastro
 - **THEN** a tela informa o resultado; se houver erro, preserva a entrada e direciona o foco ao resumo com erros associados aos campos; sucesso atualiza a listagem
+
+### Requirement: Apresentação acessível da Frota em desktop
+A SPA SHALL apresentar Grupos, Planos e Veículos com a identidade visual aprovada, preservando campos, ações, validações, mensagens, paginação e regras existentes, com adaptação a janelas e zoom em desktops e notebooks (RF-04–07, RF-19, J-02, RNF-04, CA-02/03/11).
+
+#### Scenario: Navegar pelas consultas e editores
+- **WHEN** a pessoa autenticada abre Frota e acessa Grupos, Planos ou Veículos
+- **THEN** a tela identifica Frota na navegação compartilhada e permite consultar, cadastrar, editar e excluir os registros conforme as regras existentes
+- **AND** apresenta as colunas, campos, valores, opções e ações existentes, sem acrescentar filtros
+- **AND** antes de excluir grupo, plano ou veículo, apresenta diálogo com título específico da entidade, sem ícone de lixeira, com a pergunta que identifica o registro separada do aviso de preservação do histórico; oferece Cancelar e Excluir, com altura e tratamento de borda uniformes e hover restrito à borda; Excluir usa fundo `#945B43` e texto branco
+- **AND** o foco inicia em Cancelar; cancelar ou usar Esc não altera o registro e devolve o foco à origem; somente após confirmar é tentada a exclusão lógica, preservando os bloqueios e anunciando o sucesso identificado quando ocorrer
+
+#### Scenario: Consultar veículos filtrados ou agrupados
+- **WHEN** a pessoa filtra veículos por grupo ou ativa o agrupamento
+- **THEN** a lista mantém o filtro, a identificação dos grupos, as miniaturas, as ações e a paginação existentes
+- **AND** o agrupamento organiza apenas a página carregada
+
+#### Scenario: Usar planos por modalidade
+- **WHEN** a pessoa cadastra ou edita um plano
+- **THEN** a tela apresenta os parâmetros correspondentes às modalidades Diário, Controlado ou Livre
+- **AND** preserva grupo e modalidade imutáveis na edição e a mensagem existente sobre preços contratados
+
+#### Scenario: Receber estados e erros
+- **WHEN** uma consulta carrega, retorna vazia ou falha, ou uma gravação é confirmada ou rejeitada
+- **THEN** a tela mantém os estados, mensagens, nova tentativa, resumo de erros e associações aos campos existentes, sem depender apenas de cor
+- **AND** preserva os dados em edição em caso de erro e permite operar os controles por teclado
+
+#### Scenario: Reduzir janela ou ampliar a página
+- **WHEN** a pessoa usa janela reduzida ou zoom nativo de 200% em desktop ou notebook
+- **THEN** navegação, formulários, mensagens e ações permanecem legíveis e alcançáveis por teclado, com foco perceptível e sem rolagem horizontal da página
+- **AND** quando necessária, a rolagem horizontal fica restrita à região acessível da tabela
+
+### Requirement: Padrão final das tabelas operacionais
+As tabelas operacionais SHALL preservar a legibilidade dos dados e a coerência de suas ações em desktop, inclusive com ampliação (RNF-04, CA-11).
+
+#### Scenario: Apresentar uma coluna com apenas Editar e Excluir
+- **WHEN** a pessoa consulta Grupos, Planos, Veículos, Condutores ou Taxas
+- **THEN** os ícones permanecem no mesmo eixo do cabeçalho Ações, com dimensões e intervalo uniformes, nomes acessíveis e foco perceptível
+- **AND** o recuo direito é compartilhado com Cadastrar e Próxima; se a tabela tiver rolagem horizontal, as bordas direitas coincidem com a tabela rolada até o fim
+- **AND** o padrão não substitui ações adicionais de Clientes nem Consultar em Aluguéis
+
+#### Scenario: Consultar dados em janela reduzida ou a 200% de zoom
+- **WHEN** a pessoa consulta uma tabela operacional em janela reduzida ou a 200% de zoom
+- **THEN** cabeçalhos, placas, documentos, datas, modalidades e rótulos de botões permanecem inteiros, sem truncar nomes longos, que podem quebrar linha
+- **AND** quando necessária, a rolagem horizontal permanece na região focalizável da tabela, sem rolagem horizontal da página
+
+#### Scenario: Distinguir quantidade na paginação
+- **WHEN** a tabela muda entre um e vários registros
+- **THEN** a paginação distingue singular e plural e mantém controles compactos e operáveis por teclado
