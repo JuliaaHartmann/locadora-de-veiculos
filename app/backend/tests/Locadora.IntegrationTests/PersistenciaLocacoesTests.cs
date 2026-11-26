@@ -73,9 +73,11 @@ public sealed class PersistenciaLocacoesTests
         try
         {
             var migra = db.GetService<IMigrator>();
-            await migra.MigrateAsync("20261123005316_Fase2Cadastros");
+            await migra.MigrateAsync();
             var dados = await CriarCadastros(db, contexto);
             db.ChangeTracker.Clear();
+            // A aplicação atual não grava diretamente em um schema anterior aos códigos.
+            await migra.MigrateAsync("20261123005316_Fase2Cadastros");
             await migra.MigrateAsync();
             Assert.AreEqual("Frota de teste", (await db.Grupos.SingleAsync()).Nome);
             Assert.AreEqual(dados.Veiculo.Id, (await db.Veiculos.SingleAsync()).Id);
@@ -173,7 +175,11 @@ public sealed class PersistenciaLocacoesTests
         var condutor = Condutor.Criar(cliente.Id, "Condutor Exemplo", "condutor@example.invalid", "52998224725",
             "CNH-EXEMPLO", new DateOnly(2027, 11, 23), "Tel", empresa.Id, agora);
         var taxa = TaxaServico.Criar("Taxa de teste", 30m, ModalidadeTaxa.Fixa, empresa.Id, agora);
-        if (!existente.HasValue) db.Empresas.Add(empresa);
+        if (!existente.HasValue)
+        {
+            db.Empresas.Add(empresa);
+            await db.SaveChangesAsync();
+        }
         db.AddRange(grupo, plano, veiculo, cliente, condutor, taxa);
         await db.SaveChangesAsync();
         return new(empresa.Id, agora, grupo, plano, veiculo, cliente, condutor, taxa);

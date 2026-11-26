@@ -7,7 +7,7 @@ public enum ModalidadePlano
     Livre,
 }
 
-public sealed class Plano : EntidadeEmpresa
+public sealed class Plano : EntidadeNumerada
 {
     public Guid GrupoId { get; set; }
     public Grupo? Grupo { get; set; }

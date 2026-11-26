@@ -24,13 +24,13 @@ public sealed record CondutorLocacao(Guid Id, string Nome, DateOnly ValidadeCnh)
 public sealed record VeiculoLocacao(Guid Id, string Placa, string Marca, string Modelo, Combustivel Combustivel,
     string CapacidadeLitros);
 public sealed record GrupoLocacao(Guid Id, string Nome);
-public sealed record AluguelDetalhe(Guid Id, EstadoAluguel Estado, ContratanteLocacao Cliente, CondutorLocacao Condutor,
+public sealed record AluguelDetalhe(Guid Id, string NumeroExibicao, EstadoAluguel Estado, ContratanteLocacao Cliente, CondutorLocacao Condutor,
     VeiculoLocacao Veiculo, GrupoLocacao Grupo, DateTimeOffset Saida, DateTimeOffset RetornoPrevisto,
     int HodometroInicial, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DemonstrativoEstimado? Estimativa,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DemonstrativoDevolucao? Final = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Oculto = false);
 
-public sealed record AluguelResumo(Guid Id, EstadoAluguel Estado, string Condutor, Guid VeiculoId, string Placa,
+public sealed record AluguelResumo(Guid Id, string NumeroExibicao, EstadoAluguel Estado, string Condutor, Guid VeiculoId, string Placa,
     string Marca, string Modelo, ModalidadePlano Plano, DateTimeOffset Saida, DateTimeOffset RetornoPrevisto,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ParcelasConhecidas,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? TotalFinal = null,
@@ -54,7 +54,7 @@ public interface IRepositorioAlugueis
         bool incluirOcultos = false);
     Task<IReadOnlyList<TaxaServico>> LerTaxasAtivasAsync(IReadOnlyList<Guid> ids, CancellationToken ct);
     Task<PrecoCombustivel?> LerPrecoNoRetornoAsync(Combustivel tipo, DateTimeOffset retornoUtc, CancellationToken ct);
-    Task<(FechamentoAluguel Final, ContratoSnapshot Revisao)> LerFinalOriginalAsync(Guid finalId, CancellationToken ct);
+    Task<(FechamentoAluguel Final, ContratoSnapshot Revisao, int NumeroExibicao)> LerFinalOriginalAsync(Guid finalId, CancellationToken ct);
     Task<FechamentoAluguel> LerFinalDaRevisaoAsync(Guid aluguelId, Guid revisaoId, CancellationToken ct);
     Task<Pagina<LinhaAluguel>> ListarAsync(FiltroAluguel filtro, int pagina, int tamanho, CancellationToken ct);
     void Adicionar(Aluguel aluguel);

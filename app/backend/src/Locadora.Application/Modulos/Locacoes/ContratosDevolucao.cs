@@ -16,7 +16,7 @@ public sealed record DemonstrativoDevolucao(string VersaoRegra, DateTimeOffset R
     string LitrosRestantes, int Diarias, int KmRodados, PlanoFinal Plano, IReadOnlyList<AdicionalFinal> Adicionais,
     CombustivelFinal Combustivel, ParcelaMonetaria? Multa, string Total, string Caucao);
 public sealed record PreviaDevolucao(string VersaoAceita, DemonstrativoDevolucao Demonstrativo);
-public sealed record DevolucaoConcluida(Guid Id, EstadoAluguel Estado, DemonstrativoDevolucao Final);
+public sealed record DevolucaoConcluida(Guid Id, EstadoAluguel Estado, DemonstrativoDevolucao Final, string NumeroExibicao);
 
 public sealed class FalhaGravacaoDevolucaoException(Exception causa)
     : Exception("Não foi possível gravar a devolução. O aluguel continua em aberto e o veículo permanece ocupado.", causa);

@@ -4,7 +4,7 @@ namespace Locadora.Domain;
 /// Versão imutável de preço de combustível. A vigência e a ordem serial são atribuídas pelo servidor;
 /// o cliente nunca altera datas ou versões anteriores.
 /// </summary>
-public sealed class PrecoCombustivel : EntidadeEmpresa
+public sealed class PrecoCombustivel : EntidadeNumerada
 {
     public Combustivel Tipo { get; set; }
     public decimal Preco { get; set; }

@@ -1,6 +1,6 @@
 namespace Locadora.Domain;
 
-public sealed class Grupo : EntidadeEmpresa
+public sealed class Grupo : EntidadeNumerada
 {
     public string Nome { get; set; } = string.Empty;
     public ICollection<Plano> Planos { get; set; } = new List<Plano>();

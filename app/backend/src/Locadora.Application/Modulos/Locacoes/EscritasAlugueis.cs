@@ -151,7 +151,8 @@ public sealed partial class AluguelService
                 x.TaxaId ?? x.SeguroId!.Value, x.Categoria, x.Nome, x.Modalidade, Decimais.FormatacaoMonetaria(x.Preco),
                 Valor(x.Valor))).ToArray(),
             Valor(revisao.ParcelasConhecidas), Valor(revisao.Caucao), true) : null;
-        return new(aluguel.Id, aluguel.Estado, cliente, condutor, veiculo, grupo, HorarioLocacao.ParaSaoPaulo(aluguel.SaidaUtc),
+        return new(aluguel.Id, EntidadeNumerada.FormatarCodigo(aluguel.NumeroExibicao), aluguel.Estado,
+            cliente, condutor, veiculo, grupo, HorarioLocacao.ParaSaoPaulo(aluguel.SaidaUtc),
             HorarioLocacao.ParaSaoPaulo(revisao.RetornoPrevistoUtc), revisao.HodometroInicial, estimativa,
             final is null ? null : Demonstrativo(final, revisao), aluguel.ExcluidoEmUtc is not null);
     }

@@ -6,7 +6,7 @@ public enum ModalidadeTaxa
     Diaria,
 }
 
-public sealed class TaxaServico : EntidadeEmpresa
+public sealed class TaxaServico : EntidadeNumerada
 {
     public string Nome { get; set; } = string.Empty;
     public decimal Preco { get; set; }

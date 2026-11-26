@@ -13,7 +13,8 @@ public sealed record ClienteResumo(
     string? Cpf,
     string? Rg,
     string? Cnh,
-    string? Cnpj);
+    string? Cnpj,
+    string NumeroExibicao);
 
 public sealed record ClienteVinculado(Guid Id, string Nome, string? Cnpj);
 
@@ -28,7 +29,8 @@ public sealed record ClienteDetalhe(
     string? Cnh,
     string? Cnpj,
     EnderecoContrato Endereco,
-    IReadOnlyList<ClienteVinculado> VinculosPj);
+    IReadOnlyList<ClienteVinculado> VinculosPj,
+    string NumeroExibicao);
 
 public sealed record CondutorResumo(
     Guid Id,
@@ -39,7 +41,8 @@ public sealed record CondutorResumo(
     string Cpf,
     string Cnh,
     DateOnly ValidadeCnh,
-    string Telefone);
+    string Telefone,
+    string NumeroExibicao);
 
 public sealed record ComandoCliente(
     TipoCliente Tipo,

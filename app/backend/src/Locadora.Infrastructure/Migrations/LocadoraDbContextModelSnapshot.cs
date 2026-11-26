@@ -50,6 +50,9 @@ namespace Locadora.Infrastructure.Migrations
                     b.Property<DateTimeOffset?>("ExcluidoEmUtc")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<int>("NumeroExibicao")
+                        .HasColumnType("int");
+
                     b.Property<Guid>("PlanoId")
                         .HasColumnType("uniqueidentifier");
 
@@ -74,6 +77,9 @@ namespace Locadora.Infrastructure.Migrations
 
                     b.HasIndex("EmpresaId", "CondutorId");
 
+                    b.HasIndex("EmpresaId", "NumeroExibicao")
+                        .IsUnique();
+
                     b.HasIndex("EmpresaId", "PlanoId");
 
                     b.HasIndex("EmpresaId", "VeiculoId")
@@ -87,6 +93,8 @@ namespace Locadora.Infrastructure.Migrations
                             t.HasCheckConstraint("CK_Alugueis_AbertoNaoOcultado", "[Estado] <> 0 OR [ExcluidoEmUtc] IS NULL");
 
                             t.HasCheckConstraint("CK_Alugueis_Estado", "[Estado] IN (0, 1)");
+
+                            t.HasCheckConstraint("CK_Alugueis_NumeroExibicao", "[NumeroExibicao] BETWEEN 1 AND 999999");
                         });
                 });
 
@@ -172,6 +180,9 @@ namespace Locadora.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<int>("NumeroExibicao")
+                        .HasColumnType("int");
+
                     b.Property<string>("Rg")
                         .HasMaxLength(32)
                         .HasColumnType("nvarchar(32)");
@@ -202,7 +213,13 @@ namespace Locadora.Infrastructure.Migrations
 
                     b.HasIndex("EmpresaId", "Nome");
 
-                    b.ToTable("Clientes", (string)null);
+                    b.HasIndex("EmpresaId", "NumeroExibicao")
+                        .IsUnique();
+
+                    b.ToTable("Clientes", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Clientes_NumeroExibicao", "[NumeroExibicao] BETWEEN 1 AND 999999");
+                        });
                 });
 
             modelBuilder.Entity("Locadora.Domain.Condutor", b =>
@@ -247,6 +264,9 @@ namespace Locadora.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<int>("NumeroExibicao")
+                        .HasColumnType("int");
+
                     b.Property<string>("Telefone")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -269,7 +289,13 @@ namespace Locadora.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("[ExcluidoEmUtc] IS NULL");
 
-                    b.ToTable("Condutores", (string)null);
+                    b.HasIndex("EmpresaId", "NumeroExibicao")
+                        .IsUnique();
+
+                    b.ToTable("Condutores", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Condutores_NumeroExibicao", "[NumeroExibicao] BETWEEN 1 AND 999999");
+                        });
                 });
 
             modelBuilder.Entity("Locadora.Domain.ContratoSnapshot", b =>
@@ -707,6 +733,9 @@ namespace Locadora.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<int>("NumeroExibicao")
+                        .HasColumnType("int");
+
                     b.Property<byte[]>("Versao")
                         .IsConcurrencyToken()
                         .IsRequired()
@@ -717,7 +746,13 @@ namespace Locadora.Infrastructure.Migrations
 
                     b.HasIndex("EmpresaId", "Nome");
 
-                    b.ToTable("Grupos", (string)null);
+                    b.HasIndex("EmpresaId", "NumeroExibicao")
+                        .IsUnique();
+
+                    b.ToTable("Grupos", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Grupos_NumeroExibicao", "[NumeroExibicao] BETWEEN 1 AND 999999");
+                        });
                 });
 
             modelBuilder.Entity("Locadora.Domain.ItemContratado", b =>
@@ -910,6 +945,9 @@ namespace Locadora.Infrastructure.Migrations
                     b.Property<int>("Modalidade")
                         .HasColumnType("int");
 
+                    b.Property<int>("NumeroExibicao")
+                        .HasColumnType("int");
+
                     b.Property<decimal>("PrecoDiario")
                         .HasPrecision(19, 6)
                         .HasColumnType("decimal(19,6)");
@@ -926,11 +964,17 @@ namespace Locadora.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("EmpresaId", "NumeroExibicao")
+                        .IsUnique();
+
                     b.HasIndex("EmpresaId", "GrupoId", "Modalidade")
                         .IsUnique()
                         .HasFilter("[ExcluidoEmUtc] IS NULL");
 
-                    b.ToTable("Planos", (string)null);
+                    b.ToTable("Planos", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Planos_NumeroExibicao", "[NumeroExibicao] BETWEEN 1 AND 999999");
+                        });
                 });
 
             modelBuilder.Entity("Locadora.Domain.PrecoCombustivel", b =>
@@ -955,6 +999,9 @@ namespace Locadora.Infrastructure.Migrations
                     b.Property<DateTimeOffset>("InicioVigenciaUtc")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<int>("NumeroExibicao")
+                        .HasColumnType("int");
+
                     b.Property<long>("Ordem")
                         .HasColumnType("bigint");
 
@@ -973,9 +1020,15 @@ namespace Locadora.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("EmpresaId", "NumeroExibicao")
+                        .IsUnique();
+
                     b.HasIndex("EmpresaId", "Tipo", "InicioVigenciaUtc", "Ordem", "Id");
 
-                    b.ToTable("PrecosCombustivel", (string)null);
+                    b.ToTable("PrecosCombustivel", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PrecosCombustivel_NumeroExibicao", "[NumeroExibicao] BETWEEN 1 AND 999999");
+                        });
                 });
 
             modelBuilder.Entity("Locadora.Domain.RecursoTenantTeste", b =>
@@ -1234,6 +1287,9 @@ namespace Locadora.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<int>("NumeroExibicao")
+                        .HasColumnType("int");
+
                     b.Property<decimal>("Preco")
                         .HasPrecision(19, 6)
                         .HasColumnType("decimal(19,6)");
@@ -1248,7 +1304,13 @@ namespace Locadora.Infrastructure.Migrations
 
                     b.HasIndex("EmpresaId", "Nome");
 
-                    b.ToTable("TaxasServico", (string)null);
+                    b.HasIndex("EmpresaId", "NumeroExibicao")
+                        .IsUnique();
+
+                    b.ToTable("TaxasServico", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_TaxasServico_NumeroExibicao", "[NumeroExibicao] BETWEEN 1 AND 999999");
+                        });
                 });
 
             modelBuilder.Entity("Locadora.Domain.Veiculo", b =>
@@ -1298,6 +1360,9 @@ namespace Locadora.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<int>("NumeroExibicao")
+                        .HasColumnType("int");
+
                     b.Property<string>("Placa")
                         .IsRequired()
                         .HasMaxLength(16)
@@ -1313,11 +1378,17 @@ namespace Locadora.Infrastructure.Migrations
 
                     b.HasIndex("EmpresaId", "GrupoId");
 
+                    b.HasIndex("EmpresaId", "NumeroExibicao")
+                        .IsUnique();
+
                     b.HasIndex("EmpresaId", "Placa")
                         .IsUnique()
                         .HasFilter("[ExcluidoEmUtc] IS NULL");
 
-                    b.ToTable("Veiculos", (string)null);
+                    b.ToTable("Veiculos", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Veiculos_NumeroExibicao", "[NumeroExibicao] BETWEEN 1 AND 999999");
+                        });
                 });
 
             modelBuilder.Entity("Locadora.Domain.VinculoPfPj", b =>
@@ -1349,6 +1420,27 @@ namespace Locadora.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("VinculosPfPj", (string)null);
+                });
+
+            modelBuilder.Entity("Locadora.Infrastructure.LocadoraDbContext+ContadorCodigo", b =>
+                {
+                    b.Property<Guid>("EmpresaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte>("TipoRecurso")
+                        .HasColumnType("tinyint");
+
+                    b.Property<int>("UltimoNumero")
+                        .HasColumnType("int");
+
+                    b.HasKey("EmpresaId", "TipoRecurso");
+
+                    b.ToTable("ContadoresCodigo", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ContadoresCodigo_Numero", "[UltimoNumero] BETWEEN 1 AND 999999");
+
+                            t.HasCheckConstraint("CK_ContadoresCodigo_Tipo", "[TipoRecurso] BETWEEN 1 AND 8");
+                        });
                 });
 
             modelBuilder.Entity("Locadora.Infrastructure.UsuarioIdentity", b =>
@@ -1978,6 +2070,15 @@ namespace Locadora.Infrastructure.Migrations
                     b.Navigation("ClientePf");
 
                     b.Navigation("ClientePj");
+                });
+
+            modelBuilder.Entity("Locadora.Infrastructure.LocadoraDbContext+ContadorCodigo", b =>
+                {
+                    b.HasOne("Locadora.Domain.Empresa", null)
+                        .WithMany()
+                        .HasForeignKey("EmpresaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Locadora.Infrastructure.UsuarioIdentity", b =>

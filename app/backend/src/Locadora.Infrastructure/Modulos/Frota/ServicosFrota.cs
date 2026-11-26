@@ -21,7 +21,8 @@ public sealed class GrupoService(
             .OrderBy(x => x.Modalidade).ThenBy(x => x.Id)
             .ToListAsync(ct);
         var itens = grupos.Select(g => new GrupoResumo(g.Id, g.Nome,
-            planos.Where(p => p.GrupoId == g.Id).Select(p => Mapear(p, g.Nome)).ToList())).ToList();
+            planos.Where(p => p.GrupoId == g.Id).Select(p => Mapear(p, g.Nome)).ToList(),
+            EntidadeNumerada.FormatarCodigo(g.NumeroExibicao))).ToList();
         return new Pagina<GrupoResumo>(itens, pagina, tamanho, total);
     }
 
@@ -84,13 +85,14 @@ public sealed class GrupoService(
     }
 
     private static GrupoDetalhe Mapear(Grupo grupo, IReadOnlyList<Plano> planos) =>
-        new(grupo.Id, grupo.Nome, planos.Select(p => Mapear(p, grupo.Nome)).ToList());
+        new(grupo.Id, grupo.Nome, planos.Select(p => Mapear(p, grupo.Nome)).ToList(),
+            EntidadeNumerada.FormatarCodigo(grupo.NumeroExibicao));
 
     private static PlanoResumo Mapear(Plano plano, string grupoNome) =>
         new(plano.Id, plano.GrupoId, grupoNome, plano.Modalidade,
             Decimais.FormatacaoMonetaria(plano.PrecoDiario),
             plano.PrecoKm is null ? null : Decimais.FormatacaoMonetaria(plano.PrecoKm.Value),
-            plano.FranquiaDiariaKm);
+            plano.FranquiaDiariaKm, EntidadeNumerada.FormatarCodigo(plano.NumeroExibicao));
 }
 
 public sealed class PlanoService(
@@ -182,7 +184,7 @@ public sealed class PlanoService(
         new(plano.Id, plano.GrupoId, grupoNome, plano.Modalidade,
             Decimais.FormatacaoMonetaria(plano.PrecoDiario),
             plano.PrecoKm is null ? null : Decimais.FormatacaoMonetaria(plano.PrecoKm.Value),
-            plano.FranquiaDiariaKm);
+            plano.FranquiaDiariaKm, EntidadeNumerada.FormatarCodigo(plano.NumeroExibicao));
 }
 
 public sealed class VeiculoService(
@@ -292,5 +294,5 @@ public sealed class VeiculoService(
     private static VeiculoResumo Mapear(Veiculo veiculo, string grupoNome) =>
         new(veiculo.Id, veiculo.GrupoId, grupoNome, veiculo.Placa, veiculo.Marca, veiculo.Modelo,
             veiculo.Cor, veiculo.Ano, veiculo.Combustivel,
-            Decimais.FormatacaoCapacidade(veiculo.CapacidadeLitros));
+            Decimais.FormatacaoCapacidade(veiculo.CapacidadeLitros), EntidadeNumerada.FormatarCodigo(veiculo.NumeroExibicao));
 }

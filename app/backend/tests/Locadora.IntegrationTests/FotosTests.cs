@@ -130,11 +130,12 @@ public sealed partial class FotosTests
         var migrador = db.GetService<IMigrator>();
         try
         {
-            await migrador.MigrateAsync("20261123184507_Fase4DevolucaoOperacaoLocal");
+            await migrador.MigrateAsync();
             var dados = await EntrarEPreparar(a, fabrica);
             var outros = await EntrarEPreparar(b, fabrica);
             await Estado(await Enviar(a, HttpMethod.Post, "/api/v1/alugueis", ComandoAtual(dados),
-                "Idempotency-Key", "legado-f4"), HttpStatusCode.Created);
+                 "Idempotency-Key", "legado-f4"), HttpStatusCode.Created);
+            await migrador.MigrateAsync("20261123184507_Fase4DevolucaoOperacaoLocal");
             await migrador.MigrateAsync();
             glob.ServiceProvider.GetRequiredService<IContextoEmpresa>().Definir(dados.Empresa);
             Assert.AreEqual(dados.Veiculo.Id, (await db.Veiculos.SingleAsync()).Id);

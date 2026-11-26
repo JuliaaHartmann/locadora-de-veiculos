@@ -29,7 +29,8 @@ public sealed partial class AluguelService
         {
             var a = x.Aluguel;
             var r = x.Revisao;
-            return new AluguelResumo(a.Id, a.Estado, r.CondutorNome, r.VeiculoId, r.VeiculoPlaca, r.VeiculoMarca,
+             return new AluguelResumo(a.Id, EntidadeNumerada.FormatarCodigo(a.NumeroExibicao), a.Estado,
+                 r.CondutorNome, r.VeiculoId, r.VeiculoPlaca, r.VeiculoMarca,
                 r.VeiculoModelo, r.ModalidadePlano, HorarioLocacao.ParaSaoPaulo(a.SaidaUtc),
                 HorarioLocacao.ParaSaoPaulo(r.RetornoPrevistoUtc),
                 a.Estado == EstadoAluguel.EmAberto ? Valor(r.ParcelasConhecidas) : null,

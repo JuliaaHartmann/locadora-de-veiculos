@@ -9,11 +9,12 @@ public sealed record PlanoResumo(
     ModalidadePlano Modalidade,
     string PrecoDiario,
     string? PrecoKm,
-    int? FranquiaDiariaKm);
+    int? FranquiaDiariaKm,
+    string NumeroExibicao);
 
-public sealed record GrupoResumo(Guid Id, string Nome, IReadOnlyList<PlanoResumo> Planos);
+public sealed record GrupoResumo(Guid Id, string Nome, IReadOnlyList<PlanoResumo> Planos, string NumeroExibicao);
 
-public sealed record GrupoDetalhe(Guid Id, string Nome, IReadOnlyList<PlanoResumo> Planos);
+public sealed record GrupoDetalhe(Guid Id, string Nome, IReadOnlyList<PlanoResumo> Planos, string NumeroExibicao);
 
 public sealed record ComandoGrupo(string? Nome);
 
@@ -36,7 +37,8 @@ public sealed record VeiculoResumo(
     string Cor,
     int Ano,
     Combustivel Combustivel,
-    string CapacidadeLitros);
+    string CapacidadeLitros,
+    string NumeroExibicao);
 
 public sealed record ComandoVeiculo(
     Guid GrupoId,

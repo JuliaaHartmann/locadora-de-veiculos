@@ -15,7 +15,8 @@ public sealed class TaxaService(
         var consulta = db.TaxasServico.AsNoTracking().OrderBy(x => x.Nome).ThenBy(x => x.Id);
         var total = await consulta.CountAsync(ct);
         var itens = await consulta.Skip((pagina - 1) * tamanho).Take(tamanho)
-            .Select(x => new TaxaResumo(x.Id, x.Nome, Decimais.FormatacaoMonetaria(x.Preco), x.Modalidade))
+            .Select(x => new TaxaResumo(x.Id, x.Nome, Decimais.FormatacaoMonetaria(x.Preco), x.Modalidade,
+                EntidadeNumerada.FormatarCodigo(x.NumeroExibicao)))
             .ToListAsync(ct);
         return new Pagina<TaxaResumo>(itens, pagina, tamanho, total);
     }
@@ -75,7 +76,8 @@ public sealed class TaxaService(
     }
 
     private static TaxaResumo Mapear(TaxaServico taxa) =>
-        new(taxa.Id, taxa.Nome, Decimais.FormatacaoMonetaria(taxa.Preco), taxa.Modalidade);
+        new(taxa.Id, taxa.Nome, Decimais.FormatacaoMonetaria(taxa.Preco), taxa.Modalidade,
+            EntidadeNumerada.FormatarCodigo(taxa.NumeroExibicao));
 }
 
 public sealed class SeguroService(
@@ -160,7 +162,8 @@ public sealed class CombustivelService(
             .ThenByDescending(x => x.Id)
             .Skip((pagina - 1) * tamanho).Take(tamanho).ToListAsync(ct);
         return new Pagina<CombustivelVersao>(versoes.Select(x => new CombustivelVersao(
-            x.Id, x.Tipo, Decimais.FormatacaoMonetaria(x.Preco), x.InicioVigenciaUtc, x.Ordem)).ToList(),
+            x.Id, x.Tipo, Decimais.FormatacaoMonetaria(x.Preco), x.InicioVigenciaUtc, x.Ordem,
+            EntidadeNumerada.FormatarCodigo(x.NumeroExibicao))).ToList(),
             pagina, tamanho, total);
     }
 
@@ -192,5 +195,5 @@ public sealed class CombustivelService(
 
     private static CombustivelEstado Mapear(PrecoCombustivel preco) =>
         new(preco.Tipo, true, preco.Id, Decimais.FormatacaoMonetaria(preco.Preco),
-            preco.InicioVigenciaUtc, preco.Ordem);
+            preco.InicioVigenciaUtc, preco.Ordem, EntidadeNumerada.FormatarCodigo(preco.NumeroExibicao));
 }

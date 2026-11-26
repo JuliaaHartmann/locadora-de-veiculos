@@ -8,7 +8,7 @@ public enum Combustivel
     Alcool,
 }
 
-public sealed class Veiculo : EntidadeEmpresa
+public sealed class Veiculo : EntidadeNumerada
 {
     public Guid GrupoId { get; set; }
     public Grupo? Grupo { get; set; }
