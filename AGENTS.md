@@ -218,3 +218,12 @@ Ao concluir uma tarefa, informar objetivamente:
 - Estado real dos commits e do PR, quando aplicável.
 
 Não declarar uma tarefa, fase ou entrega concluída sem evidências. Não confundir documentação revisada com implementação, testes executados ou aprovação técnica.
+
+## 9. Eficiência operacional
+
+- Usar os artefatos do OpenSpec como fonte persistente de contexto da mudança, sem substituir o PRD ou o TDD. Ler apenas os arquivos e trechos pertinentes à tarefa; aproveitar o contexto já apurado quando continuar válido.
+- Priorizar a menor alteração que atenda ao escopo aprovado e reutilizar os padrões existentes.
+- Nos novos protótipos, utilizar apenas dois registros fictícios por listagem. Usar dados adicionais temporariamente e somente quando necessários para testar requisitos específicos, como paginação.
+- Priorizar testes direcionados e regressões pertinentes ao impacto da mudança. Evitar repetir leituras, análises ou testes sem mudança relevante, evidência insuficiente ou exigência do fluxo.
+- Manter os relatórios concisos, destacando decisões, evidências, problemas e pendências sem omitir os itens aplicáveis da seção 8.
+- Não reduzir segurança, acessibilidade, paridade ou qualidade para economizar tokens. A eficiência não dispensa verificações obrigatórias ou aprovações nem autoriza ampliar o escopo.
