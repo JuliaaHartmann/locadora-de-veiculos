@@ -295,7 +295,7 @@ public sealed class CadastrosDomainTests
     }
 
     [TestMethod]
-    public void Condutor_exige_email_documentos_e_validade_mas_aceita_cnh_vencida()
+    public void Condutor_aceita_email_opcional_e_cnh_vencida_mas_exige_documentos_e_validade()
     {
         var vencida = new DateOnly(2020, 1, 10);
         var condutor = Condutor.Criar(Guid.NewGuid(), "Condutor Sintético", "condutor@example.invalid",
@@ -303,7 +303,9 @@ public sealed class CadastrosDomainTests
         Assert.AreEqual(vencida, condutor.ValidadeCnh);
         Assert.AreEqual(CpfValidoAlternativo, condutor.Cpf);
 
-        Assert.ThrowsExactly<ValidacaoException>(() => Condutor.Criar(Guid.NewGuid(), "Condutor", null,
+        Assert.IsNull(Condutor.Criar(Guid.NewGuid(), "Condutor", null,
+            CpfValidoAlternativo, "CNH", vencida, "Tel", Guid.NewGuid(), Agora).Email);
+        Assert.ThrowsExactly<ValidacaoException>(() => Condutor.Criar(Guid.NewGuid(), "Condutor", "inválido",
             CpfValidoAlternativo, "CNH", vencida, "Tel", Guid.NewGuid(), Agora));
         Assert.ThrowsExactly<ValidacaoException>(() => Condutor.Criar(Guid.NewGuid(), "Condutor",
             "condutor@example.invalid", CpfValidoAlternativo, "CNH", null, "Tel", Guid.NewGuid(), Agora));

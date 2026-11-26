@@ -25,6 +25,8 @@ Capacidade é string positiva de `0.001` a `999999999.999`, até 3 casas. Ano e 
 
 Diário exige preço diário e por km; Controlado também exige franquia; Livre mantém somente preço diário. Documentos de cliente são específicos do tipo PF/PJ. Não há verificação documental externa, rota de foto ou regra de aluguel implementada neste contrato F2.
 
+**Atualização de `redesign-visual` (RF-09/DT-24):** `email` de condutor é opcional no `POST /condutores` e no `PUT /condutores/{id}`. Omissão, `null`, vazio ou espaços gravam ausência (`email: null` na resposta); no `PUT`, isso limpa o valor anterior. E-mail informado mantém validação de formato e limite de 254 caracteres. As demais regras e a precondição `If-Match` não mudam.
+
 Limites de texto: nome/marca/modelo/cidade/bairro/rua 200; cor/estado 100; e-mail 254; telefone/RG/CNH 32; número do endereço 40; placa normalizada 16; CPF/CNPJ normalizados 11/14.
 
 ## Paginação e seleção
