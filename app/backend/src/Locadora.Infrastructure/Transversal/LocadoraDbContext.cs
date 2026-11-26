@@ -138,7 +138,7 @@ public sealed partial class LocadoraDbContext(DbContextOptions<LocadoraDbContext
         builder.Entity<Condutor>().ToTable("Condutores");
         ConfigurarEntidadeEmpresa(builder.Entity<Condutor>());
         builder.Entity<Condutor>().Property(x => x.Nome).HasMaxLength(200).IsRequired();
-        builder.Entity<Condutor>().Property(x => x.Email).HasMaxLength(254).IsRequired();
+        builder.Entity<Condutor>().Property(x => x.Email).HasMaxLength(254);
         builder.Entity<Condutor>().Property(x => x.Cpf).HasMaxLength(11).IsRequired();
         builder.Entity<Condutor>().Property(x => x.Cnh).HasMaxLength(32).IsRequired();
         builder.Entity<Condutor>().Property(x => x.Telefone).HasMaxLength(32).IsRequired();

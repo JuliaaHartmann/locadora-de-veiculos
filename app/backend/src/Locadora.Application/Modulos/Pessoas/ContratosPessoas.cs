@@ -37,7 +37,7 @@ public sealed record CondutorResumo(
     Guid ClienteId,
     string ClienteNome,
     string Nome,
-    string Email,
+    string? Email,
     string Cpf,
     string Cnh,
     DateOnly ValidadeCnh,

@@ -5,7 +5,7 @@ public sealed class Condutor : EntidadeNumerada
     public Guid ClienteId { get; set; }
     public Cliente? Cliente { get; set; }
     public string Nome { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
+    public string? Email { get; set; }
     public string Cpf { get; set; } = string.Empty;
     public string Cnh { get; set; } = string.Empty;
     public DateOnly ValidadeCnh { get; set; }
@@ -56,12 +56,12 @@ public sealed class Condutor : EntidadeNumerada
         var erros = new List<ErroValidacao>();
         if (clienteId == Guid.Empty) erros.Add(new ErroValidacao("clienteId", "Selecione um cliente."));
         var nomeNormalizado = (nome ?? string.Empty).Trim();
-        var emailNormalizado = (email ?? string.Empty).Trim();
+        var emailNormalizado = string.IsNullOrWhiteSpace(email) ? null : email.Trim();
         var cpfNormalizado = DocumentoBrasileiro.Normalizar(cpf);
         var cnhNormalizada = (cnh ?? string.Empty).Trim();
         var telefoneNormalizado = (telefone ?? string.Empty).Trim();
         Validador.Adicionar(erros, "nome", Validador.Obrigatorio(nomeNormalizado, 200));
-        Validador.Adicionar(erros, "email", Validador.EmailObrigatorio(emailNormalizado));
+        Validador.Adicionar(erros, "email", Validador.EmailOpcional(emailNormalizado));
         if (cpfNormalizado.Length != 11 || !DocumentoBrasileiro.CpfValido(cpfNormalizado))
             erros.Add(new ErroValidacao("cpf", "Informe um CPF válido."));
         Validador.Adicionar(erros, "cnh", Validador.Obrigatorio(cnhNormalizada, 32));
@@ -72,6 +72,6 @@ public sealed class Condutor : EntidadeNumerada
             validadeCnh!.Value, telefoneNormalizado);
     }
 
-    private sealed record Dados(Guid ClienteId, string Nome, string Email, string Cpf, string Cnh,
+    private sealed record Dados(Guid ClienteId, string Nome, string? Email, string Cpf, string Cnh,
         DateOnly ValidadeCnh, string Telefone);
 }

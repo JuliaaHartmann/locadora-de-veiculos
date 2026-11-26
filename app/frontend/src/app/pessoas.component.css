@@ -1,0 +1,20 @@
+.editor { width: min(100%, 44rem); }
+.editor .barra { border-bottom: 1px solid var(--borda-quadro); }
+.editor form { padding-top: 1.25rem; }
+.editor fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+.editor legend { margin-bottom: .7rem; font-weight: 700; }
+.editor .campos { align-items: start; }
+.opcao-pj { display: flex; min-width: 0; min-height: 2.75rem; align-items: center; gap: .6rem; }
+.opcao-pj input { flex: none; }
+.opcao-pj span { min-width: 0; overflow-wrap: anywhere; }
+.abas [aria-disabled="true"] { opacity: .65; cursor: not-allowed; }
+.abas [role="tab"]:focus:not(:focus-visible),
+:host-context([data-foco-ponteiro]) .abas [role="tab"]:focus { outline: none; }
+table { min-width: 56rem; }
+td:first-child, .documentos-cliente, .dados-condutor { white-space: nowrap; }
+.documentos-cliente span { display: block; }
+.nome-pessoa { min-width: 9rem; }
+.tipo-cliente { display: block; font-size: .85em; }
+.acoes-tabela { flex-wrap: wrap; }
+.documentos-cliente + td .acoes-tabela { min-width: 15rem; }
+small:empty { display: none; }

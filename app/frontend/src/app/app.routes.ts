@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 import { authGuard } from './auth.guard';
 import type { AlugueisComponent } from './locacoes/alugueis.component';
 import type { FrotaComponent } from './frota.component';
+import type { PessoasComponent } from './pessoas.component';
 import { inject } from '@angular/core';
 import { SessaoService } from './sessao.service';
 
@@ -25,7 +26,8 @@ export const routes: Routes = [
         loadComponent: () => import('./frota.component').then(m => m.FrotaComponent),
       },
       {
-        path: 'pessoas',
+        path: 'pessoas', data: { saidaIntegrada: true },
+        canDeactivate: [(componente: PessoasComponent) => componente.podeNavegar()],
         loadComponent: () => import('./pessoas.component').then(m => m.PessoasComponent),
       },
       {
