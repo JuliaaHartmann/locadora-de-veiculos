@@ -1,0 +1,252 @@
+<main class="quadro-operacional">
+  <p class="sobretitulo">Área administrativa</p>
+  <h1>Preços</h1>
+  <hr class="regua" aria-hidden="true">
+  <p class="introducao">Taxas e serviços, seguros e combustíveis da empresa.</p>
+
+  <div class="abas flex flex-wrap" role="tablist" aria-label="Preços operacionais" (keydown)="navegarAbas($event)">
+    @for (item of abas; track item.valor) {
+      <button type="button" role="tab" [id]="'aba-' + item.valor" aria-controls="painel-precos"
+        [attr.aria-selected]="aba() === item.valor" [attr.tabindex]="aba() === item.valor ? 0 : -1"
+        [attr.aria-disabled]="bloqueado() || null" (click)="trocarAba(item.valor)">{{ item.rotulo }}</button>
+    }
+  </div>
+
+  @if (faseSaida() === 'incerta') {
+    <div class="saida-incerta" role="alert">Não foi possível confirmar a revogação remota. Tente sair novamente ou entre de novo.</div>
+    <button type="button" class="compacto mb-4" (click)="reautenticar()">Entrar novamente</button>
+  }
+  <div class="aviso" [class.visivel]="aviso()">
+    @if (aviso()) { <svg lucideCheck aria-hidden="true" class="size-5 shrink-0"></svg> }
+    <p id="aviso-precos" class="foco-transicao" role="status" tabindex="-1">
+      @if (aviso()) { <strong>Operação concluída.</strong> {{ aviso() }} }
+    </p>
+    @if (aviso()) {
+      <button type="button" class="acao" aria-label="Dispensar mensagem" (click)="dispensarAviso()">
+        <svg lucideX aria-hidden="true"></svg>
+      </button>
+    }
+  </div>
+  <div id="resumo-precos" tabindex="-1" role="alert" class="resumo" [hidden]="!temErros()">
+    <strong>{{ erros()['geral'] ? 'Não foi possível concluir a operação.' : 'Revise os dados informados.' }}</strong>
+    <ul class="my-1 list-disc pl-5">
+      @for (mensagem of mensagensErro(); track $index) { <li>{{ mensagem }}</li> }
+    </ul>
+    @if (conflito()) {
+      <button type="button" class="compacto" [disabled]="bloqueado() || consultandoEditor()"
+        (click)="recarregarVersao()">Recarregar versão atual</button>
+    }
+  </div>
+
+  <div id="painel-precos" role="tabpanel" [attr.aria-labelledby]="'aba-' + aba()">
+    @if (modo() === 'lista') {
+      <section class="quadro" [class.painel-seguros]="aba() === 'seguros'" [class.painel-cartoes]="aba() !== 'taxas'">
+        <div class="barra">
+          @switch (aba()) {
+            @case ('taxas') {
+              <h2>Taxas cadastradas</h2>
+              <button id="nova-taxa" type="button" class="primario" [disabled]="listaBloqueada()" (click)="novaTaxa()">Cadastrar</button>
+            }
+            @case ('seguros') {
+              <div><h2>Preços diários independentes</h2>
+                <p class="apoio">Cada seguro é configurado separadamente e pode ser contratado junto ao outro.</p></div>
+            }
+            @case ('combustiveis') {
+              <div><h2>Configurações e vigências</h2>
+                <p class="apoio">O histórico é somente leitura e a vigência é atribuída pelo servidor.</p></div>
+            }
+          }
+        </div>
+
+        @if (carregando() && aba() !== 'combustiveis') {
+          <p class="p-6" role="status">Carregando configurações…</p>
+        } @else if (erroConsulta()) {
+          <div class="p-6" role="alert">
+            <p>{{ erroConsulta() }}</p>
+            <button type="button" class="compacto" [disabled]="bloqueado()" (click)="tentarConsulta()">Tentar novamente</button>
+          </div>
+        } @else if (aba() === 'taxas') {
+          @if (taxas().length) {
+            <div class="regiao-tabela" tabindex="0" role="region" aria-label="Tabela de taxas cadastradas">
+              <table class="tabela-taxas tabela-acoes-duplas w-full border-collapse text-left">
+                <thead><tr><th scope="col">Código</th><th scope="col">Nome</th><th scope="col">Preço</th>
+                  <th scope="col">Modalidade</th><th scope="col">Ações</th></tr></thead>
+                <tbody>
+                  @for (taxa of taxas(); track taxa.id) {
+                    <tr>
+                      <td>{{ taxa.numeroExibicao }}</td><td><strong>{{ taxa.nome }}</strong></td><td>{{ formatarMoeda(taxa.preco) }}</td>
+                      <td>{{ taxa.modalidade === 'Diaria' ? 'Diária' : 'Fixa' }}</td>
+                      <td><div class="acoes-tabela">
+                        <button type="button" class="acao dica-editar" [id]="'editar-taxa-' + taxa.id"
+                          [attr.aria-label]="'Editar taxa ' + taxa.nome" [disabled]="listaBloqueada()" (click)="editarTaxa(taxa.id)">
+                          <svg lucidePencil aria-hidden="true"></svg>
+                        </button>
+                        <button type="button" class="acao perigo dica-excluir" [attr.aria-label]="'Excluir taxa ' + taxa.nome"
+                          [disabled]="listaBloqueada()" (click)="solicitarExclusao(taxa, $event)">
+                          <svg lucideTrash2 aria-hidden="true"></svg>
+                        </button>
+                      </div></td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          } @else { <p class="p-6 text-center">Nenhuma taxa cadastrada.</p> }
+          <div class="barra paginacao">
+            <span>Página {{ pagina() }} · {{ total() }} {{ total() === 1 ? 'registro' : 'registros' }} · até 20 por página</span>
+            <div class="flex gap-2">
+              <button type="button" class="compacto" (click)="paginar(-1)" [disabled]="listaBloqueada() || pagina() <= 1">Anterior</button>
+              <button type="button" class="compacto" (click)="paginar(1)" [disabled]="listaBloqueada() || pagina() * 20 >= total()">Próxima</button>
+            </div>
+          </div>
+        } @else if (aba() === 'seguros') {
+          <div class="grade-cartoes grade-seguros">
+            @for (tipo of tiposSeguro; track tipo) {
+              <article class="cartao-preco" [attr.aria-label]="rotuloSeguro(tipo)">
+                <strong>{{ rotuloSeguro(tipo) }}</strong>
+                @if (estadoSeguro(tipo)?.configurado) {
+                  <p class="valor">{{ formatarMoeda(estadoSeguro(tipo)?.precoDiario) }} <small>por dia</small></p>
+                } @else { <p class="apoio">Preço não configurado</p> }
+                <div class="acoes-cartao">
+                  <button type="button" class="compacto" [id]="'seguro-' + tipo" [disabled]="listaBloqueada()"
+                    [attr.aria-label]="'Configurar preço do ' + rotuloSeguro(tipo).toLowerCase()"
+                    (click)="configurarSeguro(tipo)">Configurar preço</button>
+                </div>
+              </article>
+            }
+          </div>
+        } @else {
+          @if (carregando()) {
+            <p class="p-6" role="status">Carregando configurações…</p>
+          } @else {
+            <div class="grade-cartoes grade-combustiveis">
+              @for (tipo of tiposCombustivel; track tipo) {
+                <article class="cartao-preco" [attr.aria-label]="rotuloCombustivel(tipo)">
+                  <strong>{{ rotuloCombustivel(tipo) }}</strong>
+                  @if (estadoCombustivel(tipo); as estado) {
+                    @if (estado.configurado) {
+                      <p class="valor">{{ formatarMoeda(estado.preco) }}</p>
+                      <p class="apoio">Vigente desde {{ formatarData(estado.inicioVigenciaUtc) }}</p>
+                    } @else { <p class="apoio">Preço não configurado</p> }
+                  }
+                  <div class="acoes-cartao">
+                    <button type="button" class="compacto" [id]="'combustivel-' + tipo" [disabled]="listaBloqueada()"
+                      [attr.aria-label]="'Adicionar preço de ' + rotuloCombustivel(tipo).toLowerCase()"
+                      (click)="adicionarPreco(tipo)">Adicionar preço</button>
+                    <button type="button" class="compacto" [disabled]="listaBloqueada()"
+                      [attr.aria-label]="'Ver histórico de ' + rotuloCombustivel(tipo).toLowerCase()"
+                      (click)="verHistorico(tipo)">Histórico</button>
+                  </div>
+                </article>
+              }
+            </div>
+            <div class="barra filtros">
+              <h3 id="titulo-historico" class="foco-transicao" tabindex="-1">Histórico de combustíveis</h3>
+              <div class="flex flex-wrap items-center gap-2">
+                <label for="historico-tipo">Combustível:</label>
+                <select id="historico-tipo" [value]="historicoTipo()" [disabled]="bloqueado()" (change)="mudarHistorico($event)">
+                  @for (tipo of tiposCombustivel; track tipo) { <option [value]="tipo">{{ rotuloCombustivel(tipo) }}</option> }
+                </select>
+              </div>
+            </div>
+            @if (carregandoHistorico()) {
+              <p class="p-6" role="status">Carregando histórico…</p>
+            } @else if (erroHistorico()) {
+              <div class="p-6" role="alert">
+                <p>{{ erroHistorico() }}</p>
+                <button type="button" class="compacto" [disabled]="bloqueado()" (click)="tentarHistorico()">Tentar novamente</button>
+              </div>
+            } @else {
+              @if (historico().length) {
+                <div class="regiao-tabela" tabindex="0" role="region" aria-label="Tabela de histórico de combustível">
+                  <table class="tabela-historico w-full border-collapse text-left">
+                    <thead><tr><th scope="col">Código</th><th scope="col">Combustível</th><th scope="col">Preço</th>
+                      <th scope="col">Início da vigência</th><th scope="col">Ordem</th><th scope="col">Situação</th></tr></thead>
+                    <tbody>
+                      @for (versao of historico(); track versao.id) {
+                        <tr><td>{{ versao.numeroExibicao }}</td><td>{{ rotuloCombustivel(versao.tipo) }}</td><td>{{ formatarMoeda(versao.preco) }}</td>
+                          <td>{{ formatarData(versao.inicioVigenciaUtc) }}</td><td>{{ versao.ordem }}</td>
+                          <td>{{ versao.id === estadoCombustivel(versao.tipo)?.id ? 'Vigente' : 'Versão anterior' }}</td></tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              } @else { <p class="p-6 text-center">Nenhuma vigência registrada.</p> }
+              <div class="barra paginacao">
+                <span>Página {{ historicoPagina() }} · {{ historicoTotal() }} {{ historicoTotal() === 1 ? 'registro' : 'registros' }} · até 20 por página</span>
+                <div class="flex gap-2">
+                  <button type="button" class="compacto" (click)="paginarHistorico(-1)" [disabled]="bloqueado() || historicoPagina() <= 1">Anterior</button>
+                  <button type="button" class="compacto" (click)="paginarHistorico(1)" [disabled]="bloqueado() || historicoPagina() * 20 >= historicoTotal()">Próxima</button>
+                </div>
+              </div>
+            }
+          }
+        }
+      </section>
+    } @else {
+      <section class="quadro editor" aria-labelledby="titulo-editor">
+        <div class="barra"><h2 id="titulo-editor" class="foco-transicao" tabindex="-1">{{ tituloEditor() }}</h2></div>
+        <form novalidate (submit)="$event.preventDefault(); salvarEditor()">
+          <div class="campos">
+            @if (modo() === 'taxa') {
+              <div class="grid gap-1">
+                <label for="taxa-nome">Nome</label>
+                <input id="taxa-nome" [formField]="taxaForm.nome" (input)="corrigirCampo('nome', $event)"
+                  [attr.aria-invalid]="erros()['nome'] ? 'true' : null" [attr.aria-describedby]="descricaoErro('nome', 'taxa-nome')">
+                @if (erros()['nome']) { <small id="taxa-nome-erro">{{ erros()['nome'] }}</small> }
+              </div>
+              <div class="grid gap-1">
+                <label for="taxa-preco">Preço (R$)</label>
+                <input id="taxa-preco" inputmode="decimal" [formField]="taxaForm.preco" (input)="corrigirCampo('preco', $event)"
+                  [attr.aria-invalid]="erros()['preco'] ? 'true' : null" [attr.aria-describedby]="descricaoErro('preco', 'taxa-preco')">
+                @if (erros()['preco']) { <small id="taxa-preco-erro">{{ erros()['preco'] }}</small> }
+              </div>
+              <div class="grid gap-1">
+                <label for="taxa-modalidade">Modalidade</label>
+                <select id="taxa-modalidade" [formField]="taxaForm.modalidade" (change)="corrigirCampo('modalidade', $event)"
+                  [attr.aria-invalid]="erros()['modalidade'] ? 'true' : null" [attr.aria-describedby]="descricaoErro('modalidade', 'taxa-modalidade')">
+                  <option value="Fixa">Fixa</option><option value="Diaria">Diária</option>
+                </select>
+                @if (erros()['modalidade']) { <small id="taxa-modalidade-erro">{{ erros()['modalidade'] }}</small> }
+              </div>
+            } @else if (modo() === 'seguro') {
+              <div class="grid gap-1">
+                <label for="seguro-preco">Preço diário (R$)</label>
+                <input id="seguro-preco" inputmode="decimal" [formField]="seguroForm.precoDiario" (input)="corrigirCampo('precoDiario', $event)"
+                  [attr.aria-invalid]="erros()['precoDiario'] ? 'true' : null" [attr.aria-describedby]="descricaoErro('precoDiario', 'seguro-preco')">
+                @if (erros()['precoDiario']) { <small id="seguro-preco-erro">{{ erros()['precoDiario'] }}</small> }
+              </div>
+            } @else {
+              <div class="grid gap-1">
+                <label for="combustivel-preco">Preço por litro (R$)</label>
+                <input id="combustivel-preco" inputmode="decimal" [formField]="combustivelForm.preco" (input)="corrigirCampo('preco', $event)"
+                  [attr.aria-invalid]="erros()['preco'] ? 'true' : null" [attr.aria-describedby]="descricaoErro('preco', 'combustivel-preco')">
+                @if (erros()['preco']) { <small id="combustivel-preco-erro">{{ erros()['preco'] }}</small> }
+              </div>
+            }
+          </div>
+          @if (modo() === 'seguro') {
+            <p class="apoio mt-3">Preço zero é uma configuração válida e diferente de preço não configurado.</p>
+          } @else if (modo() === 'combustivel') {
+            <p class="apoio mt-3">A vigência é atribuída pelo servidor. Preços anteriores não são editados.</p>
+          }
+          <div class="acoes-editor">
+            <button type="button" [disabled]="bloqueado()" (click)="cancelar()">Cancelar</button>
+            <button type="submit" class="primario" [disabled]="bloqueado() || consultandoEditor() || conflito()">Salvar</button>
+          </div>
+        </form>
+      </section>
+    }
+  </div>
+
+  <dialog #dialogo aria-labelledby="titulo-exclusao" aria-describedby="pergunta-exclusao historico-exclusao"
+    (cancel)="$event.preventDefault(); fecharExclusao(false)" (keydown)="conterFoco($event, cancelarExclusao, confirmarExclusao)">
+    <h2 id="titulo-exclusao">Excluir taxa</h2>
+    <p id="pergunta-exclusao">Deseja excluir a taxa <strong>{{ exclusao()?.nome }}</strong>?</p>
+    <p id="historico-exclusao">O histórico dos aluguéis será preservado.</p>
+    <div class="acoes-editor">
+      <button #cancelarExclusao type="button" autofocus (click)="fecharExclusao(false)">Cancelar</button>
+      <button #confirmarExclusao type="button" class="excluir" (click)="fecharExclusao(true)">Excluir</button>
+    </div>
+  </dialog>
+</main>
