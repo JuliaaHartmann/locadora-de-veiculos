@@ -1,5 +1,5 @@
-import { Component, ElementRef, inject, signal, viewChild } from '@angular/core';
-import { email, form, FormField, minLength, required, validate } from '@angular/forms/signals';
+import { afterNextRender, Component, ElementRef, inject, Injector, signal, viewChild } from '@angular/core';
+import { email, form, FormField, minLength, required, validate, type FieldState } from '@angular/forms/signals';
 import { HttpErrorResponse, HttpClient } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
@@ -10,44 +10,8 @@ import { LucideUserPlus } from '@lucide/angular';
 @Component({
   standalone: true,
   imports: [FormField, RouterLink, LucideUserPlus],
-  template: `
-    <main>
-      <h1>Crie sua empresa</h1>
-      <p>Cadastre sua única conta administrativa. Nenhum dado empresarial adicional é necessário.</p>
-      <form (submit)="$event.preventDefault(); registrar()" novalidate>
-        <label for="usuario">Usuário</label>
-        <input id="usuario" autocomplete="username" [formField]="formulario.usuario"
-          aria-describedby="erro-usuario" [attr.aria-invalid]="formulario.usuario().invalid() && (tentativa() || formulario.usuario().touched())">
-        <span id="erro-usuario">@if (tentativa() || formulario.usuario().touched()) {
-          @for (erro of formulario.usuario().errors(); track erro.kind) { {{ erro.message }} }
-        }</span>
-        <label for="email">E-mail</label>
-        <input id="email" type="email" autocomplete="email" [formField]="formulario.email"
-          aria-describedby="erro-email" [attr.aria-invalid]="formulario.email().invalid() && (tentativa() || formulario.email().touched())">
-        <span id="erro-email">@if (tentativa() || formulario.email().touched()) {
-          @for (erro of formulario.email().errors(); track erro.kind) { {{ erro.message }} }
-        }</span>
-        <label for="senha">Senha</label>
-        <input id="senha" type="password" autocomplete="new-password" [formField]="formulario.senha"
-          aria-describedby="erro-senha" [attr.aria-invalid]="formulario.senha().invalid() && (tentativa() || formulario.senha().touched())">
-        <span id="erro-senha">@if (tentativa() || formulario.senha().touched()) {
-          @for (erro of formulario.senha().errors(); track erro.kind) { {{ erro.message }} }
-        }</span>
-        <label for="confirmacao">Confirmar senha</label>
-        <input id="confirmacao" type="password" autocomplete="new-password" [formField]="formulario.confirmacaoSenha"
-          aria-describedby="erro-confirmacao" [attr.aria-invalid]="formulario.confirmacaoSenha().invalid() && (tentativa() || formulario.confirmacaoSenha().touched())">
-        <span id="erro-confirmacao">@if (tentativa() || formulario.confirmacaoSenha().touched()) {
-          @for (erro of formulario.confirmacaoSenha().errors(); track erro.kind) { {{ erro.message }} }
-        }</span>
-        <p #resumo tabindex="-1" role="alert">{{ erro() }}</p>
-        <button type="submit" [disabled]="enviando()">
-          <svg lucideUserPlus aria-hidden="true" focusable="false" class="h-5 w-5"></svg>
-          {{ enviando() ? 'Criando conta...' : 'Criar empresa' }}
-        </button>
-      </form>
-      <p>Já tem uma conta? <a routerLink="/login">Entrar</a></p>
-    </main>
-  `,
+  templateUrl: './registro.component.html',
+  styleUrl: './registro.component.css',
 })
 export class RegistroComponent {
   readonly dados = signal({ usuario: '', email: '', senha: '', confirmacaoSenha: '' });
@@ -66,9 +30,29 @@ export class RegistroComponent {
   readonly erro = signal('');
   readonly enviando = signal(false);
   private readonly resumo = viewChild<ElementRef<HTMLElement>>('resumo');
+  private readonly injector = inject(Injector);
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
   private readonly sessao = inject(SessaoService);
+
+  protected invalido(campo: FieldState<string>): boolean {
+    return campo.invalid() && (this.tentativa() || campo.touched());
+  }
+
+  protected descricao(campo: FieldState<string>, id: string): string {
+    return this.invalido(campo) && this.erro() ? `${id} resumo-erros-registro` : id;
+  }
+
+  protected manterFocoVisivel(evento: FocusEvent) {
+    const alvo = evento.target;
+    if (!(alvo instanceof HTMLElement) || alvo === this.resumo()?.nativeElement) return;
+    // A mensagem do campo anterior pode deslocar o novo foco depois da rolagem nativa do Tab.
+    afterNextRender(() => {
+      if (alvo === alvo.ownerDocument.activeElement) {
+        alvo.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      }
+    }, { injector: this.injector });
+  }
 
   async registrar() {
     if (this.enviando()) return;
@@ -94,6 +78,6 @@ export class RegistroComponent {
 
   private falhar(mensagem: string) {
     this.erro.set(mensagem);
-    this.resumo()?.nativeElement.focus();
+    afterNextRender({ write: () => this.resumo()?.nativeElement.focus() }, { injector: this.injector });
   }
 }
