@@ -1,0 +1,8 @@
+# Decisão aprovada — códigos permanentes de apresentação
+
+A usuária aprovou os oito tipos, a unicidade por empresa e tipo, a política de esgotamento e o cabeçalho **Código**. Esta decisão substitui a proposta inicial limitada a Aluguéis.
+
+- **Frota:** Grupos, Planos e Veículos (lista simples e agrupada). **Pessoas:** Clientes PF/PJ compartilham uma sequência; Condutores têm outra. **Preços:** Taxas e serviços e versões de combustível (uma sequência para todos os combustíveis da empresa; não substitui `Ordem`). **Aluguéis:** consulta padrão ou histórica, títulos, devolução e mensagens/diálogos que mostram UUID. Seguros não entram no escopo.
+- Um contador por empresa e tipo, compartilhando a rotina transacional, atribui um número permanente de `1` a `999999`. A apresentação aprovada nesta revisão usa `0001` a `999999`, com largura mínima de quatro dígitos e sem nova migração. UUIDs, URLs, relacionamentos, permissões, cálculos e histórico não mudam. Não introduzir busca por código. Códigos iguais entre empresas ou tipos não identificam globalmente um registro.
+- Preencher o acervo incluindo ocultos/excluídos em ordem `CriadoEm, Id`. Não reutilizar números; no limite, rejeitar apenas a criação daquele tipo na empresa. O risco de faltar nova versão de combustível exige acompanhar capacidade antes do limite.
+- Ver [RF-20](../../../../docs/prd.md), [DT-23](../../../../docs/tdd.md#dt-23--códigos-de-apresentação-permanentes-redesign-visual) e a [delta](specs/codigos-apresentacao/spec.md). A implantação e a reversão preservam códigos já emitidos. O protótipo permanece intacto; a decisão aprovada prevalece onde a coluna ainda diz ID.

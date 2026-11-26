@@ -94,7 +94,7 @@ A SPA SHALL apresentar a identidade visual aprovada e o formulário de `/login` 
 #### Scenario: Retorno de autenticação bem-sucedido
 
 - **WHEN** a tentativa com usuário e senha é aceita
-- **THEN** a senha é limpa do formulário e a pessoa é encaminhada ao painel existente
+- **THEN** a senha é limpa do formulário sem exibir erro indevido de preenchimento obrigatório durante a transição, e a pessoa é encaminhada ao painel existente
 
 #### Scenario: Falha de autenticação
 
@@ -110,3 +110,108 @@ A SPA SHALL apresentar a identidade visual aprovada e o formulário de `/login` 
 
 - **WHEN** a pessoa navega por teclado no login e aciona Criar empresa
 - **THEN** o link visível e com foco perceptível leva à tela pública `/registro` existente, conforme o cenário Navegação entre acesso e registro da capacidade `registro-empresa`
+
+### Requirement: Apresentação acessível do Painel autenticado em desktop
+
+A SPA SHALL apresentar o Painel autenticado e a navegação compartilhada com a identidade visual aprovada, adaptando-os a desktops, notebooks, janelas e zoom, com controles e mensagens legíveis e operáveis por teclado e saída disponível nos módulos autenticados (RF-02, J-01, RNF-01, RNF-04, CA-01 e CA-11).
+
+#### Scenario: Painel e acessos existentes
+
+- **WHEN** a pessoa autenticada abre o Painel em desktop ou notebook
+- **THEN** a tela apresenta o logotipo aprovado, navegação para Início, Frota, Pessoas, Preços e Aluguéis, o título Início e os quatro acessos existentes aos módulos no conteúdo, além da ação Sair
+
+#### Scenario: Rota ativa identificável
+
+- **WHEN** uma rota da navegação autenticada está ativa
+- **THEN** o respectivo link é identificado visualmente por mais de um recurso, sem depender apenas da cor, e possui `aria-current="page"`
+
+#### Scenario: Janela reduzida ou ampliação
+
+- **WHEN** a pessoa reduz a janela ou usa zoom de 200% no navegador de desktop ou notebook
+- **THEN** a navegação, os quatro acessos, Sair e mensagens permanecem legíveis e acessíveis por teclado, com foco visível e sem exigir rolagem horizontal para operá-los
+
+#### Scenario: Navegação aos módulos
+
+- **WHEN** a pessoa aciona um dos links existentes da navegação ou dos acessos do Painel
+- **THEN** segue para a rota correspondente, sem alterar as funcionalidades do módulo de destino
+
+#### Scenario: Saída confirmada
+
+- **WHEN** a pessoa aciona Sair em uma rota autenticada, a saída é autorizada e a revogação remota é confirmada
+- **THEN** a sessão em memória é encerrada e a pessoa é encaminhada ao login
+
+#### Scenario: Falha de revogação remota
+
+- **WHEN** timeout, desconexão ou falha do servidor deixam a revogação sem confirmação
+- **THEN** a tela preserva temporariamente a tela e os dados em memória, suspende novas gravações e não apresenta a saída como concluída
+- **AND** permite nova tentativa explícita para a mesma sessão quando autenticável; só libera gravações após confirmar que a sessão segue ativa, que a revogação anterior terminou sem revogar e não pode mais produzir efeitos, e encerrar a tentativa de saída; se não houver recuperação segura, exige reautenticação
+
+#### Scenario: Coordenar proteções e solicitações repetidas
+- **WHEN** a pessoa aciona Sair
+- **THEN** as proteções são avaliadas antes da revogação e reavaliadas após eventual confirmação; novas gravações não começam durante o envio da revogação
+- **AND** solicitações simultâneas da mesma sessão não abrem outro diálogo nem disparam outra revogação em voo; navegar ao login após saída autorizada não pede nova confirmação
+
+#### Scenario: Coordenar saída e renovação
+- **WHEN** a saída autorizada coincide com renovação em andamento ou não há bearer válido
+- **THEN** aguarda a renovação em andamento e, se ainda necessário e a sessão for renovável, permite no máximo uma renovação controlada exclusivamente para revogar; não repete refresh de resultado incerto ou comandos de negócio automaticamente
+- **AND** respostas tardias da sessão anterior não restauram credenciais, não alteram uma sessão posterior, não repetem comandos nem redirecionam essa sessão
+
+#### Scenario: Sessão expirada ou reautenticação necessária
+- **WHEN** a expiração é confirmada ou não é possível recuperar o acesso protegido com segurança
+- **THEN** encerra o contexto local em memória, bloqueia acesso protegido e encaminha ao login com aviso distinto de sucesso de logout
+- **AND** nem o encerramento local nem um `401` isolado são prova de revogação no servidor
+
+#### Scenario: Ação de saída compartilhada
+
+- **WHEN** a navegação compartilhada é apresentada em outra rota autenticada
+- **THEN** ela identifica a rota ativa e apresenta a ação funcional Sair na região inferior do menu
+
+#### Scenario: Confirmar saída com alterações não salvas
+- **WHEN** a pessoa aciona Sair com alterações não salvas
+- **THEN** antes da revogação, a tela apresenta a confirmação “Sair do sistema?” e “Existem alterações não salvas. Se você sair agora, essas alterações serão perdidas.”, com ações Cancelar e Sair
+- **AND** o foco inicial fica em Cancelar; cancelar preserva os dados e devolve o foco ao controle que abriu a confirmação
+
+#### Scenario: Confirmar saída após falha de foto
+- **WHEN** o veículo foi cadastrado, o envio da foto falhou e a pessoa solicita Sair
+- **THEN** antes da revogação, a tela pede confirmação informando que o veículo já foi cadastrado e que a seleção pendente da foto será perdida
+- **AND** cancelar preserva o estado e devolve o foco ao controle de saída
+
+#### Scenario: Operação de gravação ou foto em andamento
+- **WHEN** há salvamento, inclusive contratação ou devolução, ou envio, substituição ou remoção de foto em andamento
+- **THEN** Sair fica temporariamente desabilitado com indicação acessível do motivo até a operação ser resolvida
+- **AND** a tela não presume que cancelar uma requisição desfaça uma operação no servidor
+
+#### Scenario: Proteção existente da devolução
+- **WHEN** uma contratação ou devolução tem resultado incerto e a pessoa solicita Sair
+- **THEN** antes de revogar, a tela avisa que sair fará perder a possibilidade de repetir a mesma tentativa nesta tela
+- **AND** cancelar mantém sessão e dados disponíveis e preserva a identidade da tentativa, sem iniciar outra contratação ou devolução
+
+### Requirement: Identidade e apresentação final da navegação
+A SPA SHALL manter a identidade LocaCar e a navegação autenticada operável em desktops e notebooks (RF-02, RNF-04, CA-11).
+
+#### Scenario: Exibir a identidade aprovada
+- **WHEN** a pessoa abre uma rota pública ou autenticada
+- **THEN** o título do documento é LocaCar, o logotipo original é preservado e o favicon apresenta um L creme centralizado, em Georgia, negrito e itálico, sobre fundo oliva quadrado com cantos arredondados, sem símbolo de carro ou efeitos decorativos
+- **AND** o monograma é legível a 16×16 e 32×32
+
+#### Scenario: Rolar conteúdo em uma rota autenticada
+- **WHEN** a pessoa rola o conteúdo principal com largura e altura suficientes
+- **THEN** o menu lateral e Sair permanecem visíveis; Sair permanece no rodapé do menu com altura de 36 px, texto de 14 px, ícone de 16 px e raio de 8 px na apresentação desktop
+- **AND** com espaço insuficiente, inclusive a 200% de zoom, o menu volta ao fluxo natural sem perder acesso por teclado ou foco perceptível
+
+#### Scenario: Usar preenchimento automático nativo
+- **WHEN** o navegador preenche automaticamente um campo em uma tela pública ou autenticada
+- **THEN** o campo exibe fundo branco sem alterar o valor preenchido, desativar o recurso, mudar suas bordas ou suprimir o foco
+- **AND** o modo de cores forçadas preserva o tratamento nativo do navegador
+
+### Requirement: Confirmação segura do resultado da saída
+A SPA SHALL distinguir revogação confirmada de encerramento local e proteger as gravações durante resultados incertos (RF-02, DT-22).
+
+#### Scenario: Interpretar a resposta de revogação
+- **WHEN** o logout retorna `204`, `401` ou fica sem confirmação por falha de transporte ou de servidor
+- **THEN** `204` confirma a revogação; `401` isolado não a comprova, e uma leitura `200` da mesma sessão ativa não libera gravações enquanto a tentativa anterior puder produzir efeitos
+- **AND** na incerteza há aviso acessível e recuperação explícita conforme o estado da sessão; a reautenticação não anuncia sucesso de logout
+
+#### Scenario: Receber rejeição tardia de leitura ou gravação
+- **WHEN** chega um `401` de operação iniciada antes da reserva de saída ou sob uma sessão substituída
+- **THEN** a resposta não provoca renovação automática, repetição de comando ou redirecionamento indevido enquanto a saída estiver reservada ou incerta ou em outra sessão
