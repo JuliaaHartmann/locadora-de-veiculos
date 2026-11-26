@@ -22,53 +22,101 @@ describe('Acesso da F1', () => {
   });
   afterEach(() => http.verify());
 
-  it('impede envio inválido, associa erros e foca o resumo', async () => {
+  it('no cadastro impede envio vazio, associa erros e foca o resumo', async () => {
     const fixture = TestBed.createComponent(RegistroComponent);
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('svg[lucideUserPlus]').getAttribute('aria-hidden')).toBe('true');
     await fixture.componentInstance.registrar();
     fixture.detectChanges();
     http.expectNone(`${api}/registro`);
-    const input: HTMLInputElement = fixture.nativeElement.querySelector('#senha');
-    expect(input.getAttribute('aria-invalid')).toBe('true');
-    expect(input.getAttribute('aria-describedby')).toBe('erro-senha');
-    expect(document.activeElement).toBe(fixture.nativeElement.querySelector('[role=alert]'));
+    const tela: HTMLElement = fixture.nativeElement;
+    const resumo = tela.querySelector('#resumo-erros-registro[role=alert]');
+    expect(resumo?.textContent).toBe('Revise os campos indicados.');
+    for (const id of ['usuario', 'email', 'senha', 'confirmacao']) {
+      const campo = tela.querySelector<HTMLInputElement>(`#${id}`)!;
+      expect(campo.getAttribute('aria-invalid')).toBe('true');
+      expect(campo.getAttribute('aria-describedby')).toBe(`erro-${id} resumo-erros-registro`);
+      expect(tela.querySelector(`#erro-${id}`)?.textContent?.trim()).not.toBe('');
+    }
+    expect(document.activeElement).toBe(resumo);
+    const usuario = tela.querySelector<HTMLInputElement>('#usuario')!;
+    usuario.value = 'admin';
+    usuario.dispatchEvent(new Event('input', { bubbles: true }));
+    fixture.detectChanges();
+    expect(usuario.getAttribute('aria-invalid')).toBe('false');
+    expect(usuario.getAttribute('aria-describedby')).toBe('erro-usuario');
+    expect(tela.querySelector('#erro-usuario')?.textContent?.trim()).toBe('');
+    expect(tela.querySelector('#email')?.getAttribute('aria-describedby')).toBe('erro-email resumo-erros-registro');
   });
 
-  it('valida confirmação de senha pelo Signal Form antes de enviar', async () => {
+  it('no cadastro mantém a descrição individual ao sair do campo inválido com resumo vazio', () => {
     const fixture = TestBed.createComponent(RegistroComponent);
     fixture.detectChanges();
-    fixture.componentInstance.dados.set({ usuario: 'admin', email: 'admin@example.test', senha: '12345678', confirmacaoSenha: 'diferente' });
+    const tela: HTMLElement = fixture.nativeElement;
+    const email = tela.querySelector<HTMLInputElement>('#email')!;
+    email.dispatchEvent(new FocusEvent('blur'));
+    fixture.detectChanges();
+    expect(email.getAttribute('aria-invalid')).toBe('true');
+    expect(email.getAttribute('aria-describedby')).toBe('erro-email');
+    expect(tela.querySelector('#resumo-erros-registro')?.textContent).toBe('');
+  });
+
+  it('no cadastro valida espaços, e-mail, senha curta e confirmação antes de enviar', async () => {
+    const fixture = TestBed.createComponent(RegistroComponent);
+    fixture.detectChanges();
+    fixture.componentInstance.dados.set({ usuario: '   ', email: 'invalido', senha: 'curta', confirmacaoSenha: 'diferente' });
     await fixture.componentInstance.registrar();
-    expect(fixture.componentInstance.formulario.confirmacaoSenha().invalid()).toBe(true);
+    const formulario = fixture.componentInstance.formulario;
+    for (const campo of [formulario.usuario, formulario.email, formulario.senha, formulario.confirmacaoSenha]) {
+      expect(campo().invalid()).toBe(true);
+    }
     http.expectNone(`${api}/registro`);
   });
 
-  it('envia somente o contrato, limpa credenciais e navega para login sem autenticar', async () => {
+  it('no cadastro envia o contrato uma vez, limpa os dados e retorna ao login sem autenticar', async () => {
     const fixture = TestBed.createComponent(RegistroComponent);
     fixture.detectChanges();
     fixture.componentInstance.dados.set({ usuario: 'admin', email: 'admin@example.test', senha: '12345678', confirmacaoSenha: '12345678' });
     const envio = fixture.componentInstance.registrar();
-    const pedido = http.expectOne(`${api}/registro`);
+    const pedido = http.expectOne({ method: 'POST', url: `${api}/registro` });
     expect(pedido.request.body).toEqual({ username: 'admin', email: 'admin@example.test', password: '12345678' });
     expect(pedido.request.headers.has('Authorization')).toBe(false);
+    fixture.detectChanges();
+    const botao: HTMLButtonElement = fixture.nativeElement.querySelector('button[type=submit]');
+    expect(botao.disabled).toBe(true);
+    expect(botao.textContent).toContain('Criando conta...');
+    await fixture.componentInstance.registrar();
+    http.expectNone(`${api}/registro`);
     pedido.flush({ empresaId: 'empresa', usuarioId: 'usuario' }, { status: 201, statusText: 'Created' });
     await envio;
-    expect(fixture.componentInstance.dados().senha).toBe('');
+    expect(fixture.componentInstance.dados()).toEqual({ usuario: '', email: '', senha: '', confirmacaoSenha: '' });
+    http.expectNone(`${api}/session/login`);
     expect(TestBed.inject(SessaoService).autenticada()).toBe(false);
     expect(TestBed.inject(Router).navigateByUrl).toHaveBeenCalledWith('/login');
     expect(TestBed.inject(SessaoService).aviso()).toContain('Empresa criada');
   });
 
-  it.each([409, 429, 503])('exibe erro %s sem perder dados não sensíveis ou refletir texto da API', async status => {
+  it.each([
+    [409, 'Usuário indisponível. Revise os dados.'],
+    [429, 'Muitas tentativas. Aguarde alguns minutos.'],
+    [503, 'Serviço indisponível. Tente mais tarde.'],
+    [400, 'Revise os dados informados.'],
+  ])('no cadastro exibe erro %s com foco e preserva dados não sensíveis', async (status, mensagem) => {
     const fixture = TestBed.createComponent(RegistroComponent);
     fixture.detectChanges();
     fixture.componentInstance.dados.set({ usuario: 'admin', email: 'admin@example.test', senha: '12345678', confirmacaoSenha: '12345678' });
     const envio = fixture.componentInstance.registrar();
     http.expectOne(`${api}/registro`).flush({ detail: 'SQL segredo' }, { status, statusText: 'Erro' });
     await envio;
+    fixture.detectChanges();
     expect(fixture.componentInstance.dados()).toEqual({ usuario: 'admin', email: 'admin@example.test', senha: '', confirmacaoSenha: '' });
-    expect(fixture.componentInstance.erro()).not.toContain('SQL');
+    const tela: HTMLElement = fixture.nativeElement;
+    const resumo = tela.querySelector('#resumo-erros-registro[role=alert]');
+    expect(resumo?.textContent).toBe(mensagem);
+    expect(document.activeElement).toBe(resumo);
+    expect(tela.querySelector('#email')?.getAttribute('aria-describedby')).toBe('erro-email');
+    expect(tela.querySelector('#senha')?.getAttribute('aria-describedby')).toBe('erro-senha resumo-erros-registro');
+    expect(tela.querySelector<HTMLButtonElement>('button[type=submit]')?.disabled).toBe(false);
     expect(TestBed.inject(Router).navigateByUrl).not.toHaveBeenCalled();
   });
 
