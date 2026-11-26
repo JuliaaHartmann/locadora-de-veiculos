@@ -1,0 +1,12 @@
+.filtros-consulta {
+  display: grid; gap: .55rem; margin: 0; padding: .55rem 1.25rem;
+  border-block: 1px solid var(--borda-quadro); background: var(--creme);
+}
+.filtros-consulta input:not([type="checkbox"]), .filtros-consulta select {
+  min-height: 36px; padding: .3rem .55rem; width: 100%;
+}
+.filtros-consulta label { font-size: .875rem; }
+.codigo-aluguel { background: transparent; font-variant-numeric: tabular-nums; }
+#titulo-alugueis { overflow-wrap: anywhere; }
+.referencia-contrato { margin: .65rem 0 0; color: var(--texto-apoio); font-variant-numeric: tabular-nums; }
+dialog:focus { outline: none; }

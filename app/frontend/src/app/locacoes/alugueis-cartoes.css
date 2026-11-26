@@ -1,0 +1,26 @@
+:host {
+  display: block; min-width: 0; overflow-wrap: anywhere;
+  --color-slate-200: #d9d2c4;
+  --color-slate-300: #d1c8b7;
+  --color-slate-400: #827d6b;
+}
+:host input[type="checkbox"] { accent-color: var(--oliva); }
+.cartao-aluguel {
+  min-width: 0; border: 1px solid #d1c8b7; border-radius: 1.15rem;
+  background: var(--creme); box-shadow: 0 .55rem 1.6rem #30332b0b;
+}
+.cartao-aluguel h2 { font: 600 1.45rem Georgia, serif; }
+.resumo { overflow-wrap: anywhere; }
+:host :focus-visible, :host [data-foco-gerenciado]:focus { outline: 3px solid var(--oliva-escuro); outline-offset: 4px; }
+:host-context([data-foco-ponteiro]) [data-foco-gerenciado]:focus { outline: none; }
+.total-aluguel { background: #e8efde; color: var(--oliva-escuro); }
+.caucao-aluguel { background: #eee8da; }
+.informacao-aluguel { background: #eee8da; border: 1px solid #827d6b; color: #30332b; }
+.opcao-aluguel:has(:checked) { border-color: #606b45; background: #e8efde; }
+.situacao-aluguel {
+  display: inline-block; border: 1px solid #827d6b; border-radius: 1rem; padding: .15rem .55rem;
+  background: #eee8da; color: #30332b; font-size: .82rem; font-weight: 650; white-space: nowrap;
+}
+.situacao-aluguel.concluido { border-color: #606b45; background: #e8efde; color: #374526; }
+.situacao-aluguel.oculto { background: #fff; }
+small.erro-campo { color: var(--erro); }

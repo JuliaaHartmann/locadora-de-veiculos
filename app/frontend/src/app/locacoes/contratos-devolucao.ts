@@ -24,4 +24,4 @@ export interface DemonstrativoDevolucao {
 }
 export interface PreviaDevolucao { versaoAceita: string; demonstrativo: DemonstrativoDevolucao; }
 export interface ConfirmacaoDevolucao extends ComandoDevolucao { versaoAceita: string; }
-export interface DevolucaoConcluida { id: string; estado: 'Concluido'; final: DemonstrativoDevolucao; }
+export interface DevolucaoConcluida { id: string; numeroExibicao: string; estado: 'Concluido'; final: DemonstrativoDevolucao; }

@@ -45,7 +45,7 @@ export interface VeiculoLocacao {
 }
 export type EstadoAluguel = 'EmAberto' | 'Concluido';
 interface ContratoPreservado {
-  id: string; saida: string; retornoPrevisto: string; hodometroInicial: number;
+  id: string; numeroExibicao: string; saida: string; retornoPrevisto: string; hodometroInicial: number;
   cliente: { id: string; nome: string; tipo: TipoCliente; documentoMascarado: string };
   condutor: { id: string; nome: string; validadeCnh: string };
   veiculo: VeiculoLocacao;
@@ -56,7 +56,7 @@ export type AluguelConcluido = ContratoPreservado & { estado: 'Concluido'; final
 export type AluguelDetalhe = AluguelAberto | AluguelConcluido;
 
 interface ResumoPreservado {
-  id: string; condutor: string; veiculoId: string; placa: string; marca: string;
+  id: string; numeroExibicao: string; condutor: string; veiculoId: string; placa: string; marca: string;
   modelo: string; plano: ModalidadePlano; saida: string; retornoPrevisto: string;
 }
 export type AluguelResumo = ResumoPreservado &

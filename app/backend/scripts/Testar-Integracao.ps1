@@ -1,6 +1,6 @@
-param([switch]$Visual, [switch]$JornadaF3, [switch]$JornadaF4, [switch]$JornadaF5, [string]$FiltroIntegracao, [switch]$R2, [switch]$Detalhado)
+param([switch]$Visual, [switch]$JornadaF3, [switch]$JornadaF4, [switch]$JornadaF5, [switch]$JornadaCodigos, [switch]$JornadaSessao, [string]$FiltroIntegracao, [switch]$R2, [switch]$Detalhado)
 $ErrorActionPreference = 'Stop'
-if ($R2 -and ($Visual -or $JornadaF3 -or $JornadaF4 -or $JornadaF5 -or $FiltroIntegracao)) {
+if ($R2 -and ($Visual -or $JornadaF3 -or $JornadaF4 -or $JornadaF5 -or $JornadaCodigos -or $JornadaSessao -or $FiltroIntegracao)) {
     throw 'Use -R2 sozinho. O ensaio externo não faz parte das jornadas locais.'
 }
 $id = [Guid]::NewGuid().ToString('N')
@@ -13,7 +13,7 @@ $senha = 'Aa1!' + [Convert]::ToBase64String([Security.Cryptography.RandomNumberG
 $anteriores = @{}
 $temporario = Join-Path $env:LOCALAPPDATA 'Temp/opencode'
 $pastaFotos = Join-Path $temporario "fotos-testes-$id"
-$jornada = $JornadaF3 -or $JornadaF4 -or $JornadaF5
+$jornada = $JornadaF3 -or $JornadaF4 -or $JornadaF5 -or $JornadaCodigos -or $JornadaSessao
 $variaveis = @{
     MSSQL_SA_PASSWORD = $senha
     Autenticacao__Jwt__Chaves__v1 = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
@@ -22,6 +22,7 @@ $variaveis = @{
     Fotos__Provedor = if ($R2) { $null } else { 'Local' }
     Fotos__PastaPrivada = if ($R2) { $null } else { $pastaFotos }
     LOCADORA_ENSAIO_R2 = if ($R2) { '1' } else { $null }
+    LOCADORA_SQL_JORNADA_SESSAO = if ($JornadaSessao) { $container } else { $null }
 }
 if ($R2) {
     $variaveis['DOTNET_ENVIRONMENT'] = 'Development'
@@ -90,17 +91,17 @@ try {
             $env:ASPNETCORE_ENVIRONMENT = 'Development'
             $env:Cors__Origens__0 = 'http://localhost:4201'
             $env:Cors__Origens__1 = 'http://127.0.0.1:4201'
-            $prefixo = if ($JornadaF5) { 'f5' } elseif ($JornadaF4) { 'f4' } elseif ($JornadaF3) { 'f3' } else { 'f1' }
+            $prefixo = if ($JornadaSessao) { 'sessao' } elseif ($JornadaCodigos) { 'codigos' } elseif ($JornadaF5) { 'f5' } elseif ($JornadaF4) { 'f4' } elseif ($JornadaF3) { 'f3' } else { 'f1' }
             $api = Start-Process dotnet -ArgumentList @('run', '--project', 'src/Locadora.Api', '--configuration', 'Release', '--no-build', '--no-launch-profile', '--urls', 'http://localhost:5001') -PassThru -RedirectStandardOutput (Join-Path $temporario "$prefixo-api.out.log") -RedirectStandardError (Join-Path $temporario "$prefixo-api.err.log")
             $comandoFrontend = 'npm start -- --port 4201 --configuration verificacao-f1'
             if ($jornada) { $comandoFrontend += ' --prebundle=false --hmr=false --live-reload=false --watch=false' }
-            if ($JornadaF4 -or $JornadaF5) { $comandoFrontend += ' --host 127.0.0.1 --allowed-hosts localhost' }
+            if ($JornadaF4 -or $JornadaF5 -or $JornadaCodigos -or $JornadaSessao) { $comandoFrontend += ' --host 127.0.0.1 --allowed-hosts localhost' }
             $frontend = Start-Process pwsh -WorkingDirectory (Join-Path $PSScriptRoot '../../frontend') -ArgumentList @('-NoProfile', '-Command', $comandoFrontend) -PassThru -RedirectStandardOutput (Join-Path $temporario "$prefixo-frontend.out.log") -RedirectStandardError (Join-Path $temporario "$prefixo-frontend.err.log")
             @{ frontendPid = $frontend.Id; apiPid = $api.Id; container = $container; volume = $volume } |
                 ConvertTo-Json | Set-Content (Join-Path $temporario "$prefixo-visual-processos.json")
             Write-Host "Ambiente visual exclusivo: http://localhost:4201 e API http://localhost:5001. Estado sem segredos em Temp/opencode/$prefixo-visual-processos.json."
             if ($jornada) {
-                $origemProntidao = if ($JornadaF4 -or $JornadaF5) { 'http://127.0.0.1:4201/' } else { 'http://localhost:4201/' }
+                $origemProntidao = if ($JornadaF4 -or $JornadaF5 -or $JornadaCodigos -or $JornadaSessao) { 'http://127.0.0.1:4201/' } else { 'http://localhost:4201/' }
                 $urls = @('http://localhost:5001/health', $origemProntidao)
                 foreach ($url in $urls) {
                     $pronto = $false
@@ -124,6 +125,14 @@ try {
                 if ($JornadaF5) {
                     node (Join-Path $PSScriptRoot '../../e2e/fase5.playwright.cjs')
                     if ($LASTEXITCODE -ne 0) { throw 'A jornada F5 no navegador falhou.' }
+                }
+                if ($JornadaCodigos) {
+                    node (Join-Path $PSScriptRoot '../../e2e/codigos-apresentacao.playwright.cjs')
+                    if ($LASTEXITCODE -ne 0) { throw 'A conferência de códigos no navegador falhou.' }
+                }
+                if ($JornadaSessao) {
+                    node (Join-Path $PSScriptRoot '../../e2e/protecao-sessao.playwright.cjs')
+                    if ($LASTEXITCODE -ne 0) { throw 'A jornada de proteção de sessão falhou.' }
                 }
             } else { $frontend.WaitForExit() }
         }

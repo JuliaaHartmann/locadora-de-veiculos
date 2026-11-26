@@ -5,23 +5,23 @@ import { CadastrosService, decimalDoFormulario, formatarMoeda, RespostaComEtag }
 import { AluguelAberto, AluguelDetalhe, AlugueisService, rotuloCombustivel, rotuloPlano, TaxaOpcao } from './alugueis.service';
 import type { ComandoDevolucao, ConfirmacaoDevolucao, PreviaDevolucao } from './contratos-devolucao';
 import { DemonstrativoDevolucaoComponent } from './demonstrativo-devolucao.component';
-import { antesDe, horarioPreciso, retornoDaTela } from './horario-locacao';
+import { antesDe, aplicarMascaraData, horarioPreciso, retornoDaTela } from './horario-locacao';
+import { SaidaCoordenador } from '../saida-coordenador.service';
 
 const litrosEmMilesimos = (litros: string) => {
   const [inteira, fracao = ''] = litros.split('.');
   return BigInt(inteira) * 1000n + BigInt(fracao.padEnd(3, '0'));
 };
-const avisoSaida = 'O resultado da devolução ainda não foi confirmado. Sair agora perde a possibilidade de repetir o mesmo envio nesta tela.';
-
 @Component({
   standalone: true,
   selector: 'app-editor-devolucao',
   imports: [FormField, DemonstrativoDevolucaoComponent],
   templateUrl: './editor-devolucao.component.html',
-  host: { '(window:beforeunload)': 'avisarRecarregamento($event)' },
+  styleUrls: ['../quadro-operacional.css', './alugueis-cartoes.css'],
 })
 export class EditorDevolucaoComponent implements OnInit {
   private readonly api = inject(AlugueisService);
+  private readonly saida = inject(SaidaCoordenador);
   private readonly injector = inject(Injector);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private ativo = true;
@@ -49,7 +49,9 @@ export class EditorDevolucaoComponent implements OnInit {
   readonly recarregando = signal(false);
   readonly incerto = signal(false);
   readonly desatualizado = signal(false);
-  readonly bloqueado = computed(() => this.calculando() || this.gravando() || this.recarregando() || this.incerto() || this.desatualizado());
+  readonly saidaBloqueia = computed(() => this.saida.fase() !== 'livre');
+  readonly bloqueado = computed(() => this.calculando() || this.gravando() || this.recarregando() ||
+    this.incerto() || this.desatualizado() || this.saidaBloqueia());
   readonly previa = signal<RespostaComEtag<PreviaDevolucao> | null>(null);
   readonly invalidada = signal(false);
   readonly erros = signal<Record<string, string>>({});
@@ -61,8 +63,8 @@ export class EditorDevolucaoComponent implements OnInit {
   readonly combustiveis = rotuloCombustivel;
   readonly planos = rotuloPlano;
   readonly campos = [
-    { chave: 'retornoReal', rotulo: 'Data e hora reais do retorno', dica: 'Use dia/mês/ano e hora de 24 h, no horário de São Paulo. Segundos e fração são opcionais.',
-      exemplo: 'dd/mm/aaaa hh:mm', modo: 'text' },
+    { chave: 'retornoReal', rotulo: 'Data e hora reais do retorno', dica: 'Formato: dia/mês/ano, hora e minuto (horário de São Paulo).',
+      exemplo: '10/07/2027 14:30', modo: 'text' },
     { chave: 'hodometroFinal', rotulo: 'Hodômetro final (km)', dica: '', exemplo: 'Ex.: 21680', modo: 'numeric' },
     { chave: 'litrosRestantes', rotulo: 'Litros restantes (L)', dica: '', exemplo: 'Ex.: 40', modo: 'decimal' },
   ] as const;
@@ -74,6 +76,14 @@ export class EditorDevolucaoComponent implements OnInit {
   });
 
   constructor() { inject(DestroyRef).onDestroy(() => this.ativo = false); }
+
+  estadoSaida() {
+    return {
+      rascunhoAlterado: Object.values(this.modelo()).some(valor => valor.trim() !== ''),
+      selecaoPendente: this.selecionadas().size > 0,
+      tentativaIncerta: this.incerto(),
+    };
+  }
   ngOnInit() { void this.buscarTaxas(); }
 
   private focar(seletor: string) {
@@ -107,6 +117,12 @@ export class EditorDevolucaoComponent implements OnInit {
     this.erros.set({});
   }
 
+  alterarRetorno(evento: Event) {
+    const retornoReal = aplicarMascaraData(evento, true);
+    this.modelo.update(modelo => ({ ...modelo, retornoReal }));
+    this.alterar();
+  }
+
   alternarTaxa(id: string, evento: Event) {
     const marcadas = new Set(this.selecionadas());
     if ((evento.target as HTMLInputElement).checked) marcadas.add(id); else marcadas.delete(id);
@@ -116,7 +132,7 @@ export class EditorDevolucaoComponent implements OnInit {
 
   dica(campo: typeof this.campos[number]) {
     if (campo.chave === 'hodometroFinal')
-      return `Informe um inteiro a partir de ${this.numero.format(this.contrato().hodometroInicial)} km.`;
+      return `Quilometragem mínima: ${this.numero.format(this.contrato().hodometroInicial)} km.`;
     if (campo.chave === 'litrosRestantes')
       return `De 0 a ${this.contrato().veiculo.capacidadeLitros.replace('.', ',')} L, com até três casas decimais.`;
     return campo.dica;
@@ -136,13 +152,19 @@ export class EditorDevolucaoComponent implements OnInit {
     else if (antesDe(momento.iso, contrato.saida)) erros['retornoReal'] = 'O retorno real não pode preceder a saída.';
 
     const hodometro = Number(modelo.hodometroFinal);
-    if (!/^\d+$/.test(modelo.hodometroFinal.trim()) || !Number.isSafeInteger(hodometro) ||
-        hodometro < contrato.hodometroInicial || hodometro > 2147483647)
-      erros['hodometroFinal'] = this.dica(this.campos[1]);
+    if (!modelo.hodometroFinal.trim()) erros['hodometroFinal'] = 'Informe o hodômetro final.';
+    else if (!/^\d+$/.test(modelo.hodometroFinal.trim()) || !Number.isSafeInteger(hodometro) || hodometro > 2147483647)
+      erros['hodometroFinal'] = 'Informe o hodômetro final em quilômetros inteiros, sem casas decimais, até 2.147.483.647 km.';
+    else if (hodometro < contrato.hodometroInicial)
+      erros['hodometroFinal'] = `O hodômetro final não pode ser inferior a ${this.numero.format(contrato.hodometroInicial)} km.`;
 
     const litros = decimalDoFormulario(modelo.litrosRestantes);
-    if (!/^\d{1,9}(\.\d{1,3})?$/.test(litros) || litrosEmMilesimos(litros) > litrosEmMilesimos(contrato.veiculo.capacidadeLitros))
-      erros['litrosRestantes'] = this.dica(this.campos[2]);
+    const capacidade = contrato.veiculo.capacidadeLitros;
+    if (!modelo.litrosRestantes.trim()) erros['litrosRestantes'] = 'Informe quantos litros restam no tanque.';
+    else if (!/^\d{1,9}(\.\d{1,3})?$/.test(litros))
+      erros['litrosRestantes'] = 'Informe a quantidade de litros com até três casas decimais, como 40,125.';
+    else if (litrosEmMilesimos(litros) > litrosEmMilesimos(capacidade))
+      erros['litrosRestantes'] = `A quantidade restante não pode passar de ${capacidade.replace('.', ',')} L.`;
     if (Object.keys(erros).length || 'erro' in momento) { this.feedback(erros); return null; }
     return { retornoReal: momento.iso, hodometroFinal: hodometro, litrosRestantes: litros, taxaIds: [...this.selecionadas()] };
   }
@@ -175,12 +197,15 @@ export class EditorDevolucaoComponent implements OnInit {
   async confirmar() {
     if (this.gravando() || this.calculando() || this.desatualizado()) return;
     const previa = this.previa();
+    if (!this.envio && !(previa && this.previaComando)) return;
+    const liberar = this.saida.iniciarMutacao();
+    if (!liberar) return;
     if (!this.envio && previa && this.previaComando) {
       this.envio = { id: this.contrato().id, etag: previa.etag, chave: crypto.randomUUID(),
         comando: { ...this.previaComando, versaoAceita: previa.dados.versaoAceita } };
     }
     const envio = this.envio;
-    if (!envio) return;
+    if (!envio) { liberar(); return; }
     this.gravando.set(true);
     this.erros.set({});
     try {
@@ -213,7 +238,7 @@ export class EditorDevolucaoComponent implements OnInit {
           await this.buscarTaxas();
         } else this.feedback(falhas, 'Não foi possível gravar a devolução.');
       }
-    } finally { if (this.ativo) this.gravando.set(false); }
+    } finally { liberar(); if (this.ativo) this.gravando.set(false); }
   }
 
   private exigirReleitura() {
@@ -223,7 +248,7 @@ export class EditorDevolucaoComponent implements OnInit {
   }
 
   async recarregar() {
-    if (this.recarregando()) return;
+    if (this.recarregando() || this.saidaBloqueia()) return;
     this.recarregando.set(true);
     try {
       const { dados, etag } = await this.api.obter(this.contrato().id);
@@ -245,8 +270,4 @@ export class EditorDevolucaoComponent implements OnInit {
     } finally { if (this.ativo) this.recarregando.set(false); }
   }
 
-  podeSair() { return (!this.incerto() && !this.gravando()) || globalThis.confirm(avisoSaida); }
-  avisarRecarregamento(evento: BeforeUnloadEvent) {
-    if (this.incerto() || this.gravando()) { evento.preventDefault(); evento.returnValue = true; }
-  }
 }

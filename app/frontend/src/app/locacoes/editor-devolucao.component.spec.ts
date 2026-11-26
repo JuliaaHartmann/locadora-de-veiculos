@@ -1,14 +1,16 @@
-import { HttpErrorResponse } from '@angular/common/http';
+import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { AluguelAberto, AlugueisService, PlanoContratado } from './alugueis.service';
 import type { DemonstrativoDevolucao } from './contratos-devolucao';
 import { EditorDevolucaoComponent } from './editor-devolucao.component';
+import { SessaoService } from '../sessao.service';
+import { SaidaCoordenador } from '../saida-coordenador.service';
 
 const plano: PlanoContratado = { id: 'p1', modalidade: 'Livre', precoDiario: '100', precoKm: null, franquiaDiariaKm: null };
 const vinculada = { id: 'fixa', nome: 'Preparação', modalidade: 'Fixa', preco: '30' } as const;
 const suporte = { id: 'extra', nome: 'Suporte de viagem', modalidade: 'Diaria', preco: '10' } as const;
 const contrato: AluguelAberto = {
-  id: 'a1', estado: 'EmAberto', saida: '2026-11-23T10:00:25.1234567-03:00',
+  id: 'a1', numeroExibicao: '000001', estado: 'EmAberto', saida: '2026-11-23T10:00:25.1234567-03:00',
   retornoPrevisto: '2026-11-24T16:00:00-03:00', hodometroInicial: 21430,
   cliente: { id: 'p1', nome: 'Contratante Exemplo', tipo: 'PJ', documentoMascarado: 'CNPJ •••' },
   condutor: { id: 'c1', nome: 'Condutora Exemplo', validadeCnh: '2026-11-24' },
@@ -60,9 +62,13 @@ describe('Editor de devolução F4', () => {
     api.preverDevolucao.mockReset().mockResolvedValue({ dados: { versaoAceita: 'p1', demonstrativo }, etag: 'r1' });
     api.confirmarDevolucao.mockReset().mockResolvedValue({ dados: { id: 'a1', estado: 'Concluido', final: demonstrativo }, etag: 'r2' });
     api.obter.mockReset().mockResolvedValue(original);
-    TestBed.configureTestingModule({ providers: [{ provide: AlugueisService, useValue: api }] });
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), { provide: AlugueisService, useValue: api }] });
+    TestBed.inject(SessaoService).definir({ sessaoId: 'sessao', accessToken: 'bearer',
+      refreshToken: 'refresh', accessExpiraEm: '2099-01-01T00:00:00Z' });
     fixture = TestBed.createComponent(EditorDevolucaoComponent);
     fixture.componentRef.setInput('original', original);
+    const liberar = TestBed.inject(SaidaCoordenador).registrar({ estado: () => fixture.componentInstance.estadoSaida() });
+    fixture.componentRef.onDestroy(liberar);
     el = fixture.nativeElement;
   });
 
@@ -72,7 +78,8 @@ describe('Editor de devolução F4', () => {
     await render();
     for (const nome of ['retornoReal', 'hodometroFinal', 'litrosRestantes'])
       expect(el.querySelector(`label[for="devolucao-${nome}"]`)).toBeTruthy();
-    expect(el.textContent).toContain('23/11/2026 às 10:00:25,1234567');
+    expect(el.textContent).toContain('23/11/2026 às 10:00');
+    expect(el.textContent).not.toContain('10:00:25,1234567');
     expect(el.textContent).toContain('Tanque cheio (50 L)');
     expect(el.querySelectorAll('input[type="checkbox"]')).toHaveLength(1);
     expect(el.textContent).toContain('Suporte de viagem');
@@ -103,6 +110,10 @@ describe('Editor de devolução F4', () => {
       expect(campo(nome).getAttribute('aria-invalid')).toBe('true');
       expect(campo(nome).getAttribute('aria-describedby')).toContain(`erro-devolucao-${nome}`);
     }
+    expect(el.querySelector('#erro-devolucao-hodometroFinal')?.textContent).toBe('O hodômetro final não pode ser inferior a 21.430 km.');
+    expect(el.querySelector('#ajuda-devolucao-hodometroFinal')).toBeNull();
+    await digitar('hodometroFinal', '21680');
+    expect(el.querySelector('#ajuda-devolucao-hodometroFinal')?.textContent).toBe('Quilometragem mínima: 21.430 km.');
     expect(campo('litrosRestantes').value).toBe('50,0001');
   });
 
@@ -133,11 +144,23 @@ describe('Editor de devolução F4', () => {
     const concluido = vi.fn();
     fixture.componentInstance.concluido.subscribe(concluido);
     await render(); await preencher(); await calcular();
-    api.confirmarDevolucao.mockRejectedValueOnce(new HttpErrorResponse({ status: 0 }));
+    let rejeitar!: (erro: unknown) => void;
+    api.confirmarDevolucao.mockImplementationOnce(() => new Promise((_resolve, reject) => rejeitar = reject));
     botao('Confirmar devolução').click(); await render();
+    const saida = TestBed.inject(SaidaCoordenador);
+    const cancelar = vi.fn(async () => false);
+    const revogar = vi.spyOn(TestBed.inject(SessaoService), 'revogar');
+    expect(saida.ocupada()).toBe(true);
+    await saida.solicitar(() => true, cancelar);
+    expect(cancelar).not.toHaveBeenCalled();
+    rejeitar(new HttpErrorResponse({ status: 0 }));
+    await render();
     expect(campo('litrosRestantes').disabled).toBe(true);
     expect(botao('Voltar ao contrato').disabled).toBe(true);
     expect(document.activeElement?.id).toBe('erros-devolucao');
+    await saida.solicitar(() => true, cancelar);
+    expect(cancelar).toHaveBeenCalledWith(expect.stringContaining('repetir a mesma tentativa'));
+    expect(revogar).not.toHaveBeenCalled();
     botao('Repetir confirmação').click(); await render();
     expect(api.confirmarDevolucao.mock.calls).toHaveLength(2);
     expect(api.confirmarDevolucao.mock.calls[0]).toEqual(api.confirmarDevolucao.mock.calls[1]);
