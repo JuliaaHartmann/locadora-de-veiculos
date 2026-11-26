@@ -202,6 +202,33 @@ public sealed class ContratosLocacoesTests
     }
 
     [TestMethod]
+    public async Task CNH_vencida_aceita_no_cadastro_impede_estimativa_e_contratacao_sem_ocupar_veiculo()
+    {
+        using var fabrica = new SqlServerWebApplicationFactory();
+        using var http = fabrica.CreateClient();
+        var dados = await EntrarEPreparar(http, fabrica);
+        var condutor = await Json(await http.PostAsJsonAsync("/api/v1/condutores", new
+        {
+            clienteId = dados.Cliente.Id, nome = "Condutor com CNH vencida",
+            email = "condutor-vencido@example.invalid", cpf = "11144477735",
+            cnh = "CNH-SINTETICA", validadeCnh = "2000-01-01", telefone = "(00) 90000-0000",
+        }), HttpStatusCode.Created);
+        Assert.AreEqual("2000-01-01", condutor.GetProperty("validadeCnh").GetString());
+        var comando = ComandoAtual(dados) with { CondutorId = condutor.GetProperty("id").GetGuid() };
+
+        var previa = await http.PostAsJsonAsync($"{Rota}/estimativas", comando);
+        var criacao = await Enviar(http, HttpMethod.Post, Rota, comando, Chave, "cnh-vencida");
+        foreach (var resposta in new[] { previa, criacao })
+        {
+            var erro = await Json(resposta, HttpStatusCode.BadRequest);
+            Assert.IsTrue(erro.GetProperty("errors").GetProperty("condutorId").EnumerateArray()
+                .Any(mensagem => mensagem.GetString() == "A CNH vence antes da data do retorno previsto."));
+        }
+        Assert.AreEqual(0, await Total(http, Rota));
+        Assert.AreEqual(1, await Total(http, "/api/v1/veiculos?disponiveis=true"));
+    }
+
+    [TestMethod]
     public async Task Corrida_entre_criar_e_vencer_CNH_revalida_o_cadastro_dentro_do_lock()
     {
         using var fabrica = new SqlServerWebApplicationFactory();

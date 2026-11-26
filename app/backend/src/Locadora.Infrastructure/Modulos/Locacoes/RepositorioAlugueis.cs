@@ -74,15 +74,18 @@ public sealed partial class RepositorioAlugueis(LocadoraDbContext db, IProtocolo
         return (aluguel, revisao);
     }
 
-    public async Task<(FechamentoAluguel Final, ContratoSnapshot Revisao)> LerFinalOriginalAsync(Guid finalId, CancellationToken ct)
+    public async Task<(FechamentoAluguel Final, ContratoSnapshot Revisao, int NumeroExibicao)> LerFinalOriginalAsync(Guid finalId, CancellationToken ct)
     {
         var agregado = await (from final in db.FechamentosAlugueis.Include(x => x.Adicionais)
                               join revisao in db.ContratosSnapshot
                                   on new { final.EmpresaId, final.AluguelId, Id = final.RevisaoId }
                                   equals new { revisao.EmpresaId, revisao.AluguelId, revisao.Id }
+                              join aluguel in AlugueisVisiveis(incluirOcultos: true)
+                                  on new { final.EmpresaId, final.AluguelId }
+                                  equals new { aluguel.EmpresaId, AluguelId = aluguel.Id }
                               where final.Id == finalId
-                              select new { final, revisao }).AsNoTracking().AsSingleQuery().SingleAsync(ct);
-        return (agregado.final, agregado.revisao);
+                              select new { final, revisao, aluguel.NumeroExibicao }).AsNoTracking().AsSingleQuery().SingleAsync(ct);
+        return (agregado.final, agregado.revisao, agregado.NumeroExibicao);
     }
 
     public Task<FechamentoAluguel> LerFinalDaRevisaoAsync(Guid aluguelId, Guid revisaoId, CancellationToken ct) =>

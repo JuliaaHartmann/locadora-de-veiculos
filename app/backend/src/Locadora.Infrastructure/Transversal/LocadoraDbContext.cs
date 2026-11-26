@@ -34,6 +34,7 @@ public sealed partial class LocadoraDbContext(DbContextOptions<LocadoraDbContext
         MapearLocacoes(builder);
         MapearFotos(builder);
         MapearAuditoria(builder);
+        MapearCodigos(builder);
     }
 
     private void MapearAcesso(ModelBuilder builder)
@@ -215,15 +216,29 @@ public sealed partial class LocadoraDbContext(DbContextOptions<LocadoraDbContext
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) =>
         SaveChangesAsync(true, cancellationToken);
 
-    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
         ValidarEscritas();
-        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        var novas = NovasEntidadesNumeradas();
+        if (novas.Length == 0)
+            return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+
+        // A API já está sob a transação do protocolo de escrita. Escritas diretas usam a mesma
+        // atomicidade sem abrir uma transação aninhada.
+        await using var propria = Database.CurrentTransaction is null
+            ? await Database.BeginTransactionAsync(cancellationToken) : null;
+        foreach (var entidade in novas)
+            entidade.NumeroExibicao = await ReservarCodigoAsync(entidade, cancellationToken);
+        var resultado = await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        if (propria is not null) await propria.CommitAsync(cancellationToken);
+        return resultado;
     }
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
         ValidarEscritas();
+        if (NovasEntidadesNumeradas().Length != 0)
+            throw new InvalidOperationException("A criação de registros com código exige SaveChangesAsync.");
         return base.SaveChanges(acceptAllChangesOnSuccess);
     }
 
@@ -245,6 +260,9 @@ public sealed partial class LocadoraDbContext(DbContextOptions<LocadoraDbContext
                 throw new UnauthorizedAccessException("Escrita fora do contexto autorizado.");
             if (entrada.State != EntityState.Added && entrada.Entity is FechamentoAluguel or ItemFechamentoAluguel)
                 throw new InvalidOperationException("O demonstrativo final é imutável.");
+            if (entrada.State == EntityState.Modified && entrada.Entity is EntidadeNumerada &&
+                entrada.Property(nameof(EntidadeNumerada.NumeroExibicao)).IsModified)
+                throw new InvalidOperationException("O código de apresentação é imutável.");
         }
 
         foreach (var entrada in ChangeTracker.Entries<VinculoPfPj>()

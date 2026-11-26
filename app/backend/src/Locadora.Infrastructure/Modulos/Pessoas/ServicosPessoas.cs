@@ -16,7 +16,7 @@ public sealed class ClienteService(
         var total = await consulta.CountAsync(ct);
         var itens = await consulta.Skip((pagina - 1) * tamanho).Take(tamanho)
             .Select(x => new ClienteResumo(x.Id, x.Tipo, x.Nome, x.Telefone, x.Email,
-                x.Cpf, x.Rg, x.Cnh, x.Cnpj)).ToListAsync(ct);
+                 x.Cpf, x.Rg, x.Cnh, x.Cnpj, EntidadeNumerada.FormatarCodigo(x.NumeroExibicao))).ToListAsync(ct);
         return new Pagina<ClienteResumo>(itens, pagina, tamanho, total);
     }
 
@@ -198,7 +198,7 @@ public sealed class ClienteService(
             cliente.Cpf, cliente.Rg, cliente.Cnh, cliente.Cnpj,
             new EnderecoContrato(cliente.Endereco.Estado, cliente.Endereco.Cidade,
                 cliente.Endereco.Bairro, cliente.Endereco.Rua, cliente.Endereco.Numero),
-            vinculos);
+             vinculos, EntidadeNumerada.FormatarCodigo(cliente.NumeroExibicao));
 }
 
 public sealed class CondutorService(
@@ -330,5 +330,5 @@ public sealed class CondutorService(
         new(condutor.Id, condutor.ClienteId,
             nomes.TryGetValue(condutor.ClienteId, out var nome) ? nome : "Cliente excluído",
             condutor.Nome, condutor.Email, condutor.Cpf, condutor.Cnh, condutor.ValidadeCnh,
-            condutor.Telefone);
+            condutor.Telefone, EntidadeNumerada.FormatarCodigo(condutor.NumeroExibicao));
 }

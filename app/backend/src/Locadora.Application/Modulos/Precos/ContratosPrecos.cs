@@ -2,7 +2,7 @@ using Locadora.Domain;
 
 namespace Locadora.Application;
 
-public sealed record TaxaResumo(Guid Id, string Nome, string Preco, ModalidadeTaxa Modalidade);
+public sealed record TaxaResumo(Guid Id, string Nome, string Preco, ModalidadeTaxa Modalidade, string NumeroExibicao);
 
 public sealed record ComandoTaxa(string? Nome, string? Preco, ModalidadeTaxa Modalidade);
 
@@ -16,14 +16,16 @@ public sealed record CombustivelEstado(
     Guid? Id,
     string? Preco,
     DateTimeOffset? InicioVigenciaUtc,
-    long? Ordem);
+    long? Ordem,
+    string? NumeroExibicao = null);
 
 public sealed record CombustivelVersao(
     Guid Id,
     Combustivel Tipo,
     string Preco,
     DateTimeOffset InicioVigenciaUtc,
-    long Ordem);
+    long Ordem,
+    string NumeroExibicao);
 
 public sealed record ComandoCombustivel(string? Preco);
 

@@ -37,8 +37,8 @@ public sealed partial class AluguelService
             {
                 if (!CryptographicOperations.FixedTimeEquals(registro.HashComando, hash))
                     throw new ConflitoException("A chave de idempotência já foi usada com outros dados.", "idempotencyKey");
-                var (original, revisaoOriginal) = await repositorio.LerFinalOriginalAsync(registro.FinalId!.Value, token);
-                return Resultado(original, revisaoOriginal, registro.VersaoOriginal);
+                var (original, revisaoOriginal, numero) = await repositorio.LerFinalOriginalAsync(registro.FinalId!.Value, token);
+                return Resultado(original, revisaoOriginal, numero, registro.VersaoOriginal);
             }
 
             var (aluguel, revisao) = await repositorio.LerAtualAsync(id, true, token) ?? throw new NaoEncontradoException();
@@ -63,7 +63,7 @@ public sealed partial class AluguelService
                 RevisaoId = revisao.Id, FinalId = final.Id, CriadoEm = agora, AtualizadoEm = agora,
             };
             await repositorio.RegistrarResultadoAsync(aluguel, novoRegistro, token);
-            return Resultado(final, revisao, aluguel.Versao);
+            return Resultado(final, revisao, aluguel.NumeroExibicao, aluguel.Versao);
         }, idempotente: true, ct);
     }
 
@@ -113,8 +113,9 @@ public sealed partial class AluguelService
         };
     }
 
-    private static RespostaComVersao<DevolucaoConcluida> Resultado(FechamentoAluguel final, ContratoSnapshot revisao, byte[] versao) =>
-        new(new(final.AluguelId, EstadoAluguel.Concluido, Demonstrativo(final, revisao)), Etag.De(versao));
+    private static RespostaComVersao<DevolucaoConcluida> Resultado(FechamentoAluguel final, ContratoSnapshot revisao,
+        int numero, byte[] versao) =>
+        new(new(final.AluguelId, EstadoAluguel.Concluido, Demonstrativo(final, revisao), EntidadeNumerada.FormatarCodigo(numero)), Etag.De(versao));
 
     private static DemonstrativoDevolucao Demonstrativo(FechamentoAluguel f, ContratoSnapshot r) =>
         new(f.VersaoRegra, HorarioLocacao.ParaSaoPaulo(f.RetornoRealUtc), f.HodometroFinal,

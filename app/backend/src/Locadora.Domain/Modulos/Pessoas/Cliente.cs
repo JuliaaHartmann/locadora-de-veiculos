@@ -6,7 +6,7 @@ public enum TipoCliente
     PJ,
 }
 
-public sealed class Cliente : EntidadeEmpresa
+public sealed class Cliente : EntidadeNumerada
 {
     public TipoCliente Tipo { get; set; }
     public string Nome { get; set; } = string.Empty;

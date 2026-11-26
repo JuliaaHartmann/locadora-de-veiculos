@@ -1,6 +1,6 @@
 namespace Locadora.Domain;
 
-public sealed class Condutor : EntidadeEmpresa
+public sealed class Condutor : EntidadeNumerada
 {
     public Guid ClienteId { get; set; }
     public Cliente? Cliente { get; set; }

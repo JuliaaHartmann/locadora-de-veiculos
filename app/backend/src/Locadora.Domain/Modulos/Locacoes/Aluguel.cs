@@ -6,7 +6,7 @@ public enum EstadoAluguel
     Concluido = 1,
 }
 
-public sealed class Aluguel : EntidadeEmpresa
+public sealed class Aluguel : EntidadeNumerada
 {
     public EstadoAluguel Estado { get; set; }
     public Guid ClienteId { get; set; }

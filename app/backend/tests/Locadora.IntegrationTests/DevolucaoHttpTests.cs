@@ -42,6 +42,7 @@ public sealed partial class DevolucaoTests
         var respostaReplay = await EnviarFechamento(a, id, entrada with { LitrosRestantes = "40.000" }, previa, null, "fechamento");
         var final = await Ler(respostaReplay, HttpStatusCode.OK);
         Assert.AreEqual("Concluido", final.GetProperty("estado").GetString());
+        Assert.AreEqual("0001", final.GetProperty("numeroExibicao").GetString());
         var salvo = await db.FechamentosAlugueis.AsNoTracking().SingleAsync();
         Assert.AreEqual(salvo.Total.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture),
             final.GetProperty("final").GetProperty("total").GetString());
