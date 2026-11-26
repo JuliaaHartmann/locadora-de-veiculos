@@ -50,7 +50,7 @@ export class LeiturasMiniaturasFrota {
   host: { class: 'block' },
   template: `
     <div class="grid h-16 w-[5.5rem] place-content-center justify-items-center gap-0.5
-      overflow-hidden rounded-lg border border-slate-300 bg-slate-50 text-center text-xs text-slate-600">
+      overflow-hidden rounded-[.6rem] border border-[#d1c8b7] bg-white text-center text-xs text-[#48553a]">
       @if (url(); as foto) {
         <img [src]="foto" [alt]="'Foto do veículo ' + placa()" width="84" height="60"
           class="h-[3.75rem] w-[5.25rem] object-contain" decoding="async" (error)="falhaNaImagem(foto)">

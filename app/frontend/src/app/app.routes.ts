@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './auth.guard';
 import type { AlugueisComponent } from './locacoes/alugueis.component';
+import type { FrotaComponent } from './frota.component';
 import { inject } from '@angular/core';
 import { SessaoService } from './sessao.service';
 
@@ -19,7 +20,8 @@ export const routes: Routes = [
         loadComponent: () => import('./painel.component').then(m => m.PainelComponent),
       },
       {
-        path: 'frota',
+        path: 'frota', data: { saidaIntegrada: true },
+        canDeactivate: [(componente: FrotaComponent) => componente.podeNavegar()],
         loadComponent: () => import('./frota.component').then(m => m.FrotaComponent),
       },
       {

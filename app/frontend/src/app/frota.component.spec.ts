@@ -4,6 +4,7 @@ import { CadastrosService } from './cadastros.service';
 import { FrotaComponent } from './frota.component';
 import { signal } from '@angular/core';
 import { SessaoService } from './sessao.service';
+import { SaidaCoordenador } from './saida-coordenador.service';
 
 describe('Frota F2', () => {
   const listar = vi.fn();
@@ -11,6 +12,9 @@ describe('Frota F2', () => {
   const criar = vi.fn();
   const editar = vi.fn();
   const excluir = vi.fn();
+  const revogar = vi.fn();
+  const faseSaida = signal<'livre' | 'incerta'>('livre');
+  const contexto = Symbol();
   const grupo = { id: 'g1', nome: 'Grupo', planos: [] };
   beforeEach(() => {
     listar.mockReset().mockResolvedValue({ items: [], page: 1, pageSize: 20, total: 0 });
@@ -18,11 +22,13 @@ describe('Frota F2', () => {
     criar.mockReset().mockResolvedValue({});
     editar.mockReset().mockResolvedValue({});
     excluir.mockReset().mockResolvedValue(undefined);
+    revogar.mockReset().mockResolvedValue(undefined);
+    faseSaida.set('livre');
     TestBed.configureTestingModule({
       providers: [{ provide: CadastrosService, useValue: {
         listar, obter, criar, editar, excluir, lerFoto: async () => { throw new HttpErrorResponse({ status: 404 }); },
         listarOpcoes: async () => [grupo],
-      } }, { provide: SessaoService, useValue: { autenticada: signal(true) } }],
+      } }, { provide: SessaoService, useValue: { autenticada: signal(true), contexto: () => contexto, faseSaida, revogar } }],
     });
   });
 
@@ -82,7 +88,7 @@ describe('Frota F2', () => {
     fixture.detectChanges();
     expect(criar).not.toHaveBeenCalled();
     expect(fixture.nativeElement.querySelector('#grupo-nome').getAttribute('aria-invalid')).toBe('true');
-    expect(document.activeElement).toBe(fixture.nativeElement.querySelector('[role=alert]'));
+    expect(document.activeElement).toBe(fixture.nativeElement.querySelector('#resumo-frota'));
   });
 
   it('preenche todos os campos de veículo, aplica filtro e agrupa apenas a página', async () => {
@@ -109,13 +115,57 @@ describe('Frota F2', () => {
     expect(fixture.nativeElement.textContent).toContain('30 registros');
   });
 
-  it('exclui com a versão lida e atualiza a listagem', async () => {
+  it('exclui somente após confirmação, com a versão lida, e atualiza a listagem', async () => {
     const fixture = TestBed.createComponent(FrotaComponent);
     await fixture.whenStable();
+    const sut = fixture.componentInstance;
+    const dialogo: HTMLDialogElement = fixture.nativeElement.querySelector('dialog');
+    Object.assign(dialogo, { showModal: vi.fn(), close: vi.fn() });
+    const confirmar = () => sut.pedirExclusao({ caminho: '/grupos/g1', entidade: 'grupo', nome: grupo.nome },
+      { currentTarget: fixture.nativeElement.querySelector('main button') } as Event);
+    confirmar();
+    fixture.detectChanges();
+    expect(dialogo.textContent).toContain('O histórico será preservado.');
+    sut.fecharExclusao(false);
+    expect(obter).not.toHaveBeenCalled();
+    expect(excluir).not.toHaveBeenCalled();
     obter.mockResolvedValueOnce({ dados: grupo, etag: 'v1' });
-    await fixture.componentInstance.excluirGrupo(grupo);
+    confirmar();
+    await sut.fecharExclusao(true);
     expect(excluir).toHaveBeenCalledWith('/grupos/g1', 'v1');
-    expect(fixture.componentInstance.aviso()).toContain('excluído');
+    expect(sut.aviso()).toContain('Grupo: cadastro excluído.');
+  });
+
+  it('o coordenador preserva o grupo alterado ao cancelar e impede Sair durante o envio', async () => {
+    const fixture = TestBed.createComponent(FrotaComponent);
+    await fixture.whenStable();
+    const sut = fixture.componentInstance;
+    const saida = TestBed.inject(SaidaCoordenador);
+    sut.novo();
+    sut.grupoModelo.set({ nome: 'Alteração de teste' });
+    const confirmar = vi.fn().mockResolvedValue(false);
+    await saida.solicitar(() => true, confirmar);
+    expect(confirmar).toHaveBeenCalledWith(expect.stringContaining('alterações não salvas'));
+    expect(sut.grupoModelo().nome).toBe('Alteração de teste');
+    expect(revogar).not.toHaveBeenCalled();
+
+    let concluir!: () => void;
+    criar.mockImplementationOnce(() => new Promise<void>(resolve => concluir = resolve));
+    const gravacao = sut.salvarGrupo();
+    expect(saida.ocupada()).toBe(true);
+    await saida.solicitar(() => true, confirmar);
+    expect(confirmar).toHaveBeenCalledTimes(1);
+    expect(revogar).not.toHaveBeenCalled();
+    concluir();
+    await gravacao;
+    expect(saida.ocupada()).toBe(false);
+
+    sut.novo();
+    sut.grupoModelo.set({ nome: 'Outra alteração' });
+    faseSaida.set('incerta');
+    await sut.salvarGrupo();
+    expect(criar).toHaveBeenCalledTimes(1);
+    expect(sut.grupoModelo().nome).toBe('Outra alteração');
   });
 
   it('informa o vínculo impeditivo antes de abrir a edição do veículo', async () => {
@@ -127,7 +177,7 @@ describe('Frota F2', () => {
     fixture.detectChanges();
     expect(obter).toHaveBeenCalledWith('/veiculos/v1?paraEdicao=true');
     expect(fixture.componentInstance.editando()).toBe(false);
-    expect(document.activeElement).toBe(fixture.nativeElement.querySelector('[role=alert]'));
+    expect(document.activeElement).toBe(fixture.nativeElement.querySelector('#resumo-frota'));
     expect(document.activeElement?.textContent).toContain(mensagem);
   });
 
