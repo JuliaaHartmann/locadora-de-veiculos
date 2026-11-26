@@ -54,7 +54,8 @@ describe('Frota — miniaturas autenticadas', () => {
     });
     TestBed.configureTestingModule({ providers: [
       provideRouter([]), provideHttpClient(withInterceptors([apiInterceptor])), provideHttpClientTesting(),
-      { provide: SessaoService, useValue: { autenticada, obterAccessToken: () => 'sessao-sintetica' } },
+      { provide: SessaoService, useValue: { autenticada, obterAccessToken: () => 'sessao-sintetica',
+        contexto: () => undefined, faseSaida: signal('livre') } },
     ] });
     http = TestBed.inject(HttpTestingController);
     const cadastros = TestBed.inject(CadastrosService);
@@ -96,7 +97,7 @@ describe('Frota — miniaturas autenticadas', () => {
     dados = [veiculo(1), veiculo(2), veiculo(3)];
     await montar();
     expect(vista().querySelector('thead th')?.textContent).toBe('Foto');
-    expect(linha(1).textContent).toContain('Editar');
+    expect(linha(1).querySelector('button[aria-label="Editar FIC001"]')).not.toBeNull();
     expect(caixa(1).textContent).toContain('Carregando…');
     avistar(1, false);
     await avancarFila();
@@ -116,8 +117,8 @@ describe('Frota — miniaturas autenticadas', () => {
     expect(caixa(2).textContent).toContain('Sem foto');
     expect(caixa(2).querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
     expect(caixa(3).textContent).toContain('Foto indisponível');
-    expect(linha(3).textContent).toContain('Editar');
-    expect(vista().querySelector('[role=alert]:not([hidden])')).toBeNull();
+    expect(linha(3).querySelector('button[aria-label="Editar FIC003"]')).not.toBeNull();
+    expect(vista().querySelector('[role=alert]:not([hidden], :empty)')).toBeNull();
     img.dispatchEvent(new Event('error'));
     f.detectChanges();
     expect(revogarUrl).toHaveBeenCalledExactlyOnceWith('blob:https://app.invalid/miniatura');

@@ -1,0 +1,17 @@
+.editor[data-editor="grupos"] { width: min(100%, 30rem); }
+.editor[data-editor="planos"] { width: min(100%, 40rem); }
+.editor[data-editor="veiculos"] { width: min(100%, 44rem); }
+.secao-foto { padding-top: 1.2rem; border-top: 1px solid var(--borda-quadro); }
+.layout-foto { display: grid; grid-template-columns: minmax(0, 12rem) minmax(0, 1fr); gap: 1rem; align-items: start; margin-top: .9rem; }
+.previsualizacao { display: grid; place-items: center; min-height: 8rem; padding: .45rem; border: 1px solid var(--borda-quadro); border-radius: .7rem; background: #fff; text-align: center; }
+.sem-foto { display: grid; justify-items: center; gap: .25rem; color: var(--oliva); font-size: .875rem; }
+.sem-foto app-icone-modulo { --icone-tamanho: 56px; }
+.detalhes-foto { min-width: 0; color: var(--texto-apoio); }
+.detalhes-foto p { margin: .65rem 0; }
+.detalhes-foto p:empty { margin: 0; }
+.selecionar-arquivo { position: relative; display: inline-flex; align-items: center; max-width: 100%; }
+
+@media (max-width: 40rem) {
+  .layout-foto { grid-template-columns: minmax(0, 1fr); }
+  .previsualizacao { max-width: 12rem; }
+}

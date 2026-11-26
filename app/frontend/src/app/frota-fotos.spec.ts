@@ -8,6 +8,7 @@ import { CadastrosService } from './cadastros.service';
 import { CONFIGURACAO_API } from './configuracao-api';
 import { FrotaComponent } from './frota.component';
 import { SessaoService } from './sessao.service';
+import { SaidaCoordenador } from './saida-coordenador.service';
 
 const veiculo = { id: 'identidade-1', placa: 'FIC01', grupoId: 'g1', marca: 'Marca', modelo: 'Modelo',
   cor: 'Cinza', ano: 2026, combustivel: 'Gasolina', capacidadeLitros: '50' };
@@ -15,6 +16,8 @@ const arquivo = new File(['imagem sintética'], 'foto.png', { type: 'image/png' 
 const erro = (status: number, body?: unknown) => new HttpErrorResponse({ status, error: body });
 
 describe('Frota — fotos da F5', () => {
+  const contexto = Symbol();
+  const revogarSessao = vi.fn();
   const lerFoto = vi.fn();
   const enviarFoto = vi.fn();
   const removerFoto = vi.fn();
@@ -40,7 +43,7 @@ describe('Frota — fotos da F5', () => {
     criar.mockReset().mockResolvedValue({ dados: veiculo, etag: 'retornada', status: 201 });
     obter.mockReset().mockResolvedValue({ dados: veiculo, etag: 'retornada' });
     TestBed.configureTestingModule({ providers: [
-      { provide: SessaoService, useValue: { autenticada: sessao } },
+      { provide: SessaoService, useValue: { autenticada: sessao, contexto: () => contexto, faseSaida: signal('livre'), revogar: revogarSessao } },
       { provide: CadastrosService, useValue: { obter, criar, lerFoto, enviarFoto, removerFoto,
         listar: async () => ({ items: [], page: 1, pageSize: 20, total: 0 }),
         listarOpcoes: async () => [{ id: 'g1', nome: 'Grupo' }] } },
@@ -76,7 +79,7 @@ describe('Frota — fotos da F5', () => {
     await sut.salvarVeiculo();
     expect(criar).toHaveBeenCalledTimes(1);
     expect(enviarFoto).not.toHaveBeenCalled();
-    expect(sut.aviso()).toBe('Veículo cadastrado sem foto.');
+    expect(sut.aviso()).toContain('Veículo cadastrado sem foto.');
     expect(sut.editando()).toBe(false);
   });
 
@@ -91,7 +94,7 @@ describe('Frota — fotos da F5', () => {
     confirmar({ dados: veiculo, etag: 'retornada', status: 201 });
     await salvar;
     expect(enviarFoto).toHaveBeenCalledWith('identidade-1', 'retornada', arquivo);
-    expect(sut.aviso()).toBe('Veículo cadastrado e foto salva.');
+    expect(sut.aviso()).toContain('Veículo cadastrado e foto salva.');
   });
 
   it('não envia após erro do cadastro e conserva o arquivo', async () => {
@@ -128,10 +131,18 @@ describe('Frota — fotos da F5', () => {
     expect(document.activeElement?.id).toBe('erro-foto');
     expect(sut.erroFoto()).toContain('O veículo foi cadastrado');
     expect(f.nativeElement.textContent).toContain('Tentar enviar a foto novamente');
+    revogarSessao.mockClear();
+    const saida = TestBed.inject(SaidaCoordenador);
+    const confirmar = vi.fn().mockResolvedValue(false);
+    await saida.solicitar(() => true, confirmar);
+    expect(confirmar).toHaveBeenCalledWith(expect.stringContaining('O veículo já foi cadastrado'));
+    expect(confirmar.mock.calls[0][0]).not.toContain('alterações não salvas');
+    expect(sut.arquivoFoto()).toBe(arquivo);
+    expect(revogarSessao).not.toHaveBeenCalled();
     await sut.enviarFoto();
     expect(criar).toHaveBeenCalledTimes(1);
     expect(enviarFoto.mock.calls).toEqual([[veiculo.id, 'retornada', arquivo], [veiculo.id, 'retornada', arquivo]]);
-    expect(sut.aviso()).toBe('Veículo cadastrado e foto salva.');
+    expect(sut.aviso()).toContain('Veículo cadastrado e foto salva.');
   });
 
   it.each([412, 409, 0])('preserva o cadastro e não repete automaticamente o envio após %i', async status => {
@@ -210,7 +221,7 @@ describe('Contrato cliente de foto', () => {
   it('envia multipart com versão e bearer apenas à API; lê a imagem como blob', async () => {
     TestBed.configureTestingModule({ providers: [provideRouter([]),
       provideHttpClient(withInterceptors([apiInterceptor])), provideHttpClientTesting(),
-      { provide: SessaoService, useValue: { obterAccessToken: () => 'sessao-sintetica' } },
+      { provide: SessaoService, useValue: { obterAccessToken: () => 'sessao-sintetica', contexto: () => undefined } },
     ] });
     const api = TestBed.inject(CadastrosService);
     const http = TestBed.inject(HttpTestingController);
