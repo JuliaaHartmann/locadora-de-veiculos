@@ -41,10 +41,12 @@ export class LoginComponent {
     try {
       const { usuario, senha } = this.dados();
       const tokens = await firstValueFrom(this.http.post<Tokens>(`${CONFIGURACAO_API.url}/session/login`, { username: usuario, password: senha }));
+      this.tentativa.set(false);
       this.dados.update(dados => ({ ...dados, senha: '' }));
       this.sessao.definir(tokens);
       await this.router.navigateByUrl('/');
     } catch {
+      this.tentativa.set(true);
       this.dados.update(dados => ({ ...dados, senha: '' }));
       this.erro.set('Não foi possível autenticar.');
       this.resumo()?.nativeElement.focus();

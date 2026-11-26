@@ -4,7 +4,6 @@ import { provideHttpClientTesting, HttpTestingController } from '@angular/common
 import { provideRouter, Router } from '@angular/router';
 import { RegistroComponent } from './registro.component';
 import { LoginComponent } from './login.component';
-import { PainelComponent } from './painel.component';
 import { SessaoService, Tokens } from './sessao.service';
 import { apiInterceptor, pertenceAApi } from './api.interceptor';
 import { CONFIGURACAO_API } from './configuracao-api';
@@ -157,9 +156,34 @@ describe('Acesso da F1', () => {
     } finally {
       local.mockRestore();
     }
-    const novaSessao = new SessaoService(TestBed.inject(HttpClient));
+    const novaSessao = TestBed.runInInjectionContext(() => new SessaoService());
     expect(novaSessao.autenticada()).toBe(false);
     expect(novaSessao.obterAccessToken()).toBeUndefined();
+  });
+
+  it('no login aceito limpa a senha sem exibir validação enquanto aguarda a navegação', async () => {
+    const fixture = TestBed.createComponent(LoginComponent);
+    fixture.detectChanges();
+    let concluirNavegacao!: (resultado: boolean) => void;
+    vi.mocked(TestBed.inject(Router).navigateByUrl).mockImplementationOnce(() =>
+      new Promise(resolve => { concluirNavegacao = resolve; }));
+    fixture.componentInstance.dados.set({ usuario: 'admin', senha: '12345678' });
+    const envio = fixture.componentInstance.entrar();
+    http.expectOne(`${api}/session/login`).flush(tokens);
+    await Promise.resolve();
+    try {
+      fixture.detectChanges();
+      const tela: HTMLElement = fixture.nativeElement;
+      expect(TestBed.inject(Router).navigateByUrl).toHaveBeenCalledWith('/');
+      expect(fixture.componentInstance.enviando()).toBe(true);
+      expect(tela.querySelector<HTMLInputElement>('#senha')?.value).toBe('');
+      expect(tela.querySelector('#senha')?.getAttribute('aria-invalid')).toBe('false');
+      expect(tela.querySelector('#erro-senha')?.textContent?.trim()).toBe('');
+      expect(tela.querySelector('#resumo-erros-login')?.textContent?.trim()).toBe('');
+    } finally {
+      concluirNavegacao?.(true);
+      await envio;
+    }
   });
 
   it.each([401, 429, 503])('mostra erro genérico de login para %s e recupera o foco', async status => {
@@ -199,48 +223,27 @@ describe('Acesso da F1', () => {
     expect(sessao.autenticada()).toBe(false);
   });
 
-  it('não confirma logout quando falha a revogação remota', async () => {
-    const fixture = TestBed.createComponent(PainelComponent);
-    const sessao = TestBed.inject(SessaoService);
-    sessao.definir(tokens);
-    const envio = fixture.componentInstance.sair();
-    http.expectOne(`${api}/session/logout`).flush({}, { status: 503, statusText: 'Indisponível' });
-    await envio;
-    expect(sessao.autenticada()).toBe(true);
-    expect(fixture.componentInstance.erro()).toContain('revogação remota');
-    expect(TestBed.inject(Router).navigateByUrl).not.toHaveBeenCalled();
-  });
-
-  it('limpa memória somente depois do logout confirmado', async () => {
-    const sessao = TestBed.inject(SessaoService);
-    sessao.definir(tokens);
-    const envio = sessao.sair();
-    expect(sessao.autenticada()).toBe(true);
-    http.expectOne(`${api}/session/logout`).flush(null, { status: 204, statusText: 'No Content' });
-    await envio;
-    expect(sessao.autenticada()).toBe(false);
-  });
-
   it('serializa duas renovações e não envia access token ao endpoint público', async () => {
     const sessao = TestBed.inject(SessaoService);
     sessao.definir(tokens);
-    const a = sessao.renovar();
-    const b = sessao.renovar();
+    const a = sessao.recuperar401(sessao.contexto(), tokens.accessToken);
+    const b = sessao.recuperar401(sessao.contexto(), tokens.accessToken);
     const pedido = http.expectOne(`${api}/session/refresh`);
     expect(pedido.request.headers.has('Authorization')).toBe(false);
     expect(pedido.request.withCredentials).toBe(false);
     pedido.flush({ ...tokens, accessToken: 'novo-acesso' });
-    expect(await Promise.all([a, b])).toEqual([true, true]);
+    expect(await Promise.all([a, b])).toEqual(['novo-acesso', 'novo-acesso']);
     expect(sessao.obterAccessToken()).toBe('novo-acesso');
   });
 
   it('não repete refresh se resposta se perde e exige reautenticação', async () => {
     const sessao = TestBed.inject(SessaoService);
     sessao.definir(tokens);
-    const envio = sessao.renovar();
+    const envio = sessao.recuperar401(sessao.contexto(), tokens.accessToken);
     http.expectOne(`${api}/session/refresh`).error(new ProgressEvent('error'));
-    expect(await envio).toBe(false);
+    expect(await envio).toBeUndefined();
     expect(sessao.autenticada()).toBe(false);
+    expect(TestBed.inject(Router).navigateByUrl).toHaveBeenCalledExactlyOnceWith('/login');
     http.expectNone(`${api}/session/refresh`);
   });
 
