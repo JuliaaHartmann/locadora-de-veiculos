@@ -6,8 +6,9 @@ import {
   AluguelAberto, AlugueisService, ClienteOpcao, ComandoAluguel, CondutorOpcao, DemonstrativoEstimado,
   PlanoContratado, rotuloCliente, rotuloPlano, rotuloSeguro, SeguroEstado, TaxaOpcao, TipoSeguro, VeiculoOpcao,
 } from './alugueis.service';
-import { horaDoContrato, partesDaData, retornoDaTela } from './horario-locacao';
+import { aplicarMascaraData, horaDoContrato, partesDaData, retornoDaTela } from './horario-locacao';
 import { DemonstrativoAluguelComponent } from './demonstrativo.component';
+import { SaidaCoordenador } from '../saida-coordenador.service';
 
 const vazio = {
   clienteId: '', condutorId: '', veiculoId: '', planoId: '', retornoPrevisto: '', hodometroInicial: '',
@@ -25,9 +26,11 @@ const tiposSeguro = ['Cliente', 'Terceiros'] as const;
   selector: 'app-editor-aluguel',
   imports: [FormField, DemonstrativoAluguelComponent],
   templateUrl: './editor-aluguel.component.html',
+  styleUrls: ['../quadro-operacional.css', './alugueis-cartoes.css'],
 })
 export class EditorAluguelComponent implements OnInit {
   private readonly api = inject(AlugueisService);
+  private readonly saida = inject(SaidaCoordenador);
   private readonly injector = inject(Injector);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private ativo = true;
@@ -36,8 +39,11 @@ export class EditorAluguelComponent implements OnInit {
   private envio: { comando: ComandoAluguel; chave: string } | null = null;
   private previaComando: ComandoAluguel | null = null;
   private retornoOriginal = '';
+  private referencia = { ...vazio };
+  private taxasOriginais = new Set<string>();
 
   readonly original = input<RespostaComEtag<AluguelAberto> | null>(null);
+  readonly autorizarDescarte = input.required<() => boolean | Promise<boolean>>();
   readonly voltar = output<void>();
   readonly gravado = output<RespostaComEtag<AluguelAberto>>();
   readonly revisaoCarregada = output<RespostaComEtag<AluguelAberto>>();
@@ -47,7 +53,8 @@ export class EditorAluguelComponent implements OnInit {
   readonly gravando = signal(false);
   readonly incerto = signal(false);
   readonly desatualizado = signal(false);
-  readonly bloqueado = computed(() => this.calculando() || this.gravando() || this.incerto());
+  readonly saidaBloqueia = computed(() => this.saida.fase() !== 'livre');
+  readonly bloqueado = computed(() => this.calculando() || this.gravando() || this.incerto() || this.saidaBloqueia());
   readonly carregando = signal(true);
   readonly carregandoCondutores = signal(false);
   readonly carregandoPlanos = signal(false);
@@ -83,6 +90,18 @@ export class EditorAluguelComponent implements OnInit {
 
   constructor() { inject(DestroyRef).onDestroy(() => this.ativo = false); }
 
+  estadoSaida() {
+    const modelo = this.modelo();
+    return {
+      rascunhoAlterado: (Object.keys(vazio) as (keyof typeof vazio)[]).some(campo =>
+        typeof modelo[campo] === 'string' ? String(modelo[campo]).trim() !== this.referencia[campo]
+          : modelo[campo] !== this.referencia[campo]),
+      selecaoPendente: this.selecionadas().size !== this.taxasOriginais.size ||
+        [...this.selecionadas()].some(id => !this.taxasOriginais.has(id)),
+      tentativaIncerta: this.incerto(),
+    };
+  }
+
   ngOnInit() { void this.carregar(this.original()); }
 
   private focar(seletor: string) {
@@ -103,13 +122,15 @@ export class EditorAluguelComponent implements OnInit {
       const dataHora = contrato ? partesDaData(contrato.retornoPrevisto) : null;
       this.retornoOriginal = dataHora ? `${dataHora.data} ${dataHora.hora}` : '';
       const adicionais = contrato?.estimativa.adicionais ?? [];
-      this.modelo.set(contrato ? {
+      this.referencia = contrato ? {
         clienteId: contrato.cliente.id, condutorId: contrato.condutor.id, veiculoId: contrato.veiculo.id,
         planoId: contrato.estimativa.plano.id, retornoPrevisto: this.retornoOriginal,
         hodometroInicial: String(contrato.hodometroInicial), seguroCliente: adicionais.some(x => x.categoria === 'SeguroCliente'),
         seguroTerceiros: adicionais.some(x => x.categoria === 'SeguroTerceiros'),
-      } : { ...vazio });
-      this.selecionadas.set(new Set(adicionais.filter(x => x.categoria === 'Taxa').map(x => x.origemId)));
+      } : { ...vazio };
+      this.taxasOriginais = new Set(adicionais.filter(x => x.categoria === 'Taxa').map(x => x.origemId));
+      this.modelo.set({ ...this.referencia });
+      this.selecionadas.set(new Set(this.taxasOriginais));
       await Promise.all([this.buscarCondutores(), this.buscarPlanos()]);
     } catch {
       if (this.ativo) this.erroCarregar.set('Não foi possível consultar os dados da contratação.');
@@ -186,15 +207,22 @@ export class EditorAluguelComponent implements OnInit {
     this.selecionadas.set(nova); this.alterar();
   }
 
-  precoTaxa(taxa: TaxaOpcao) {
-    return this.atual()?.dados.estimativa.adicionais.find(x => x.categoria === 'Taxa' && x.origemId === taxa.id)?.preco ?? taxa.preco;
+  taxaContratada(id: string) {
+    return this.atual()?.dados.estimativa.adicionais.find(x => x.categoria === 'Taxa' && x.origemId === id);
   }
 
-  precoSeguro(tipo: TipoSeguro) {
-    const cat = tipo === 'Cliente' ? 'SeguroCliente' : 'SeguroTerceiros';
-    return this.atual()?.dados.estimativa.adicionais.find(x => x.categoria === cat)?.preco ??
-      this.seguros()[tiposSeguro.indexOf(tipo)]?.precoDiario;
+  alterarRetorno(evento: Event) {
+    const retornoPrevisto = aplicarMascaraData(evento, true);
+    this.modelo.update(modelo => ({ ...modelo, retornoPrevisto }));
+    this.alterar();
   }
+
+  seguroContratado(tipo: TipoSeguro) {
+    const categoria = tipo === 'Cliente' ? 'SeguroCliente' : 'SeguroTerceiros';
+    return this.atual()?.dados.estimativa.adicionais.find(x => x.categoria === categoria);
+  }
+
+  precoSeguro(tipo: TipoSeguro) { return this.seguros()[tiposSeguro.indexOf(tipo)]?.precoDiario; }
 
   private erro(erros: Record<string, string>) { this.erros.set(erros); this.focar('#erros-contratacao'); }
 
@@ -241,30 +269,35 @@ export class EditorAluguelComponent implements OnInit {
   }
 
   async confirmar() {
-    if (this.gravando() || this.calculando()) return;
+    if (this.gravando() || this.calculando() || (!this.envio && !this.previaComando)) return;
+    const liberar = this.saida.iniciarMutacao();
+    if (!liberar) return;
     if (!this.envio && this.previaComando) {
       this.envio = { comando: this.previaComando, chave: crypto.randomUUID() };
     }
     const envio = this.envio;
-    if (!envio) return;
+    if (!envio) { liberar(); return; }
     this.gravando.set(true); this.erros.set({});
     try {
       const resposta = await this.api.criar(envio.comando, envio.chave);
       if (this.ativo) { this.envio = null; this.incerto.set(false); this.gravado.emit(resposta); }
     } catch (erro) {
       if (!this.ativo) return;
-      if (!(erro instanceof HttpErrorResponse) || erro.status === 0 || erro.status >= 500) {
+      if (!(erro instanceof HttpErrorResponse) || erro.status === 0 || erro.status >= 500 ||
+          (this.incerto() && [401, 403].includes(erro.status))) {
         this.incerto.set(true); this.aviso.set('');
         this.erro({ geral: 'Não recebemos a confirmação da gravação. Repita o mesmo envio sem criar outro aluguel.' });
       } else {
         this.envio = null; this.incerto.set(false); await this.tratarFalha(erro);
       }
-    } finally { if (this.ativo) this.gravando.set(false); }
+    } finally { liberar(); if (this.ativo) this.gravando.set(false); }
   }
 
   private async editar(comando: ComandoAluguel) {
     const atual = this.atual();
     if (!atual) return;
+    const liberar = this.saida.iniciarMutacao();
+    if (!liberar) return;
     this.gravando.set(true); this.erros.set({});
     try {
       const resposta = await this.api.editar(atual.dados.id, comando, atual.etag);
@@ -275,12 +308,13 @@ export class EditorAluguelComponent implements OnInit {
         this.desatualizado.set(true);
         this.erro({ geral: 'O contrato foi atualizado. Recarregue a versão atual antes de revisar os dados novamente.' });
       } else await this.tratarFalha(erro);
-    } finally { if (this.ativo) this.gravando.set(false); }
+    } finally { liberar(); if (this.ativo) this.gravando.set(false); }
   }
 
   async recarregar() {
     const atual = this.atual();
-    if (!atual || this.gravando()) return;
+    if (!atual || this.gravando() || this.saidaBloqueia()) return;
+    if (!await this.autorizarDescarte()() || !this.ativo || this.gravando() || this.saidaBloqueia()) return;
     this.gravando.set(true);
     try {
       const revisao = await this.api.obter(atual.dados.id);

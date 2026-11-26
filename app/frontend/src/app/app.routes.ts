@@ -37,7 +37,7 @@ export const routes: Routes = [
         loadComponent: () => import('./precos.component').then(m => m.PrecosComponent),
       },
       {
-        path: 'alugueis',
+        path: 'alugueis', data: { saidaIntegrada: true },
         canDeactivate: [(componente: AlugueisComponent) => componente.podeSair()],
         loadComponent: () => import('./locacoes/alugueis.component').then(m => m.AlugueisComponent),
       },

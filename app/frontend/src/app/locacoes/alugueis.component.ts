@@ -1,26 +1,41 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { afterNextRender, Component, DestroyRef, ElementRef, Injector, OnInit, inject, signal, viewChild } from '@angular/core';
+import { afterNextRender, ChangeDetectorRef, Component, computed, DestroyRef, ElementRef, Injector, OnInit, inject, signal, viewChild } from '@angular/core';
+import { LucideCircleCheck, LucideX } from '@lucide/angular';
 import { CadastrosService, formatarMoeda, Pagina, RespostaComEtag } from '../cadastros.service';
 import { AluguelAberto, AluguelDetalhe, AlugueisService, AluguelResumo, rotuloCliente, rotuloCombustivel, rotuloPlano, VeiculoHistorico } from './alugueis.service';
-import { dataDeCadastro, dataDoFiltro, horaDoContrato, horarioPreciso, partesDaData } from './horario-locacao';
+import { aplicarMascaraData, dataDeCadastro, dataDoFiltro, horaDoContrato, horarioPreciso, partesDaData } from './horario-locacao';
 import { DemonstrativoAluguelComponent } from './demonstrativo.component';
 import { EditorAluguelComponent } from './editor-aluguel.component';
 import { EditorDevolucaoComponent } from './editor-devolucao.component';
 import { DemonstrativoDevolucaoComponent } from './demonstrativo-devolucao.component';
+import { SaidaCoordenador } from '../saida-coordenador.service';
+import { SessaoService } from '../sessao.service';
 
 type Tela = 'lista' | 'detalhe' | 'contratacao' | 'edicao' | 'devolucao';
 
 @Component({
   standalone: true,
-  imports: [DemonstrativoAluguelComponent, EditorAluguelComponent, EditorDevolucaoComponent, DemonstrativoDevolucaoComponent],
+  imports: [DemonstrativoAluguelComponent, EditorAluguelComponent, EditorDevolucaoComponent, DemonstrativoDevolucaoComponent, LucideCircleCheck, LucideX],
   templateUrl: './alugueis.component.html',
+  styleUrls: ['../quadro-operacional.css', './alugueis-cartoes.css', './alugueis.component.css'],
+  host: { '(window:beforeunload)': 'avisarRecarregamento($event)' },
 })
 export class AlugueisComponent implements OnInit {
   private readonly api = inject(AlugueisService);
+  private readonly saida = inject(SaidaCoordenador);
+  private readonly sessao = inject(SessaoService);
+  private readonly dialogo = viewChild.required<ElementRef<HTMLDialogElement>>('dialogoOcultar');
+  private readonly dialogoDescarte = viewChild.required<ElementRef<HTMLDialogElement>>('dialogoDescarte');
+  readonly faseSaida = this.saida.fase;
   private readonly injector = inject(Injector);
+  private readonly mudancas = inject(ChangeDetectorRef);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly titulo = viewChild<ElementRef<HTMLElement>>('titulo');
   private readonly editorDevolucao = viewChild(EditorDevolucaoComponent);
+  private readonly editorAluguel = viewChild(EditorAluguelComponent);
+  private readonly estadoEditor = computed(() => this.editorAluguel()?.estadoSaida() ?? this.editorDevolucao()?.estadoSaida());
+  private confirmacaoDescarte?: { resultado: Promise<boolean>; resolver: (confirmado: boolean) => void };
+  readonly autorizarDescarte = () => this.podeSair();
   private leitura = 0;
   private filtros: Record<string, string | undefined> = {};
   private incluirOcultos = false;
@@ -34,6 +49,8 @@ export class AlugueisComponent implements OnInit {
   readonly errosDatas = signal({ de: '', ate: '' });
   readonly filtroNaTela = signal({ estado: '', veiculo: '', de: '', ate: '', incluir: false });
   readonly aviso = signal('');
+  readonly anuncio = signal('');
+  readonly mensagemDescarte = signal('');
   readonly lista = signal<Pagina<AluguelResumo> | null>(null);
   readonly detalhe = signal<RespostaComEtag<AluguelDetalhe> | null>(null);
   readonly veiculos = signal<VeiculoHistorico[]>([]);
@@ -52,9 +69,16 @@ export class AlugueisComponent implements OnInit {
   readonly arredondarParaCima = Math.ceil;
   private ultimaConsulta: () => Promise<void> = () => this.carregarLista();
 
-  constructor() { inject(DestroyRef).onDestroy(() => this.leitura++); }
+  constructor() {
+    const destruir = inject(DestroyRef);
+    destruir.onDestroy(this.saida.registrar({ estado: () => this.estadoEditor() ?? {} }));
+    destruir.onDestroy(() => { this.leitura++; this.confirmacaoDescarte?.resolver(false); });
+  }
 
-  ngOnInit() { void this.carregarLista(); }
+  ngOnInit() {
+    this.focar('#titulo-alugueis');
+    void this.carregarLista();
+  }
 
   focar(seletor: string) {
     afterNextRender(() => {
@@ -68,9 +92,24 @@ export class AlugueisComponent implements OnInit {
   }
 
   private mudarTela(tela: Tela) {
-    this.tela.set(tela); this.aviso.set(''); this.erroConsulta.set('');
+    this.tela.set(tela); this.limparAviso(); this.erroConsulta.set('');
     this.erroOcultar.set(''); this.ocultacaoObsoleta.set(false);
     afterNextRender(() => this.titulo()?.nativeElement.focus(), { injector: this.injector });
+  }
+
+  limparAviso() { this.aviso.set(''); this.anuncio.set(''); }
+
+  reautenticar() {
+    const contexto = this.sessao.contexto();
+    if (contexto !== undefined) this.sessao.reautenticar(contexto);
+  }
+
+  private publicarSucesso(mensagem: string) {
+    this.aviso.set(mensagem);
+    // A região viva já existe; muda depois que o foco chegou ao título da nova tela.
+    afterNextRender(() => {
+      if (this.aviso() === mensagem) this.anuncio.set(mensagem);
+    }, { injector: this.injector });
   }
 
   async carregarLista(foco = ''): Promise<void> {
@@ -106,7 +145,7 @@ export class AlugueisComponent implements OnInit {
 
   filtrar(evento: Event, estado: string, veiculoId: string, de: string, ate: string, incluir: boolean) {
     evento.preventDefault();
-    this.aviso.set('');
+    this.limparAviso();
     this.filtroNaTela.set({ estado, veiculo: veiculoId, de, ate, incluir });
     const saidaDe = dataDoFiltro(de), saidaAte = dataDoFiltro(ate);
     const faixaInvertida = !!saidaDe && !!saidaAte && saidaAte < saidaDe;
@@ -126,6 +165,11 @@ export class AlugueisComponent implements OnInit {
   }
 
   paginar(sentido: number) { this.pagina += sentido; void this.carregarLista('#resultado-alugueis'); }
+  alterarDataFiltro(campo: 'de' | 'ate', evento: Event) {
+    aplicarMascaraData(evento);
+    if (this.errosDatas()[campo]) this.errosDatas.update(erros => ({ ...erros, [campo]: '' }));
+    this.erroFiltro.set('');
+  }
   tentarNovamente() { void this.ultimaConsulta(); }
   nova() { this.leitura++; this.detalhe.set(null); this.mudarTela('contratacao'); }
   voltarLista() {
@@ -136,7 +180,48 @@ export class AlugueisComponent implements OnInit {
   editar() { if (this.detalhe()?.dados.estado === 'EmAberto') this.mudarTela('edicao'); }
   devolver() { if (this.detalhe()?.dados.estado === 'EmAberto') this.mudarTela('devolucao'); }
   voltarDetalhe() { this.mudarTela('detalhe'); }
-  podeSair() { return this.editorDevolucao()?.podeSair() ?? true; }
+  async voltarDoEditor() {
+    if (await this.podeSair()) {
+      if (this.tela() === 'contratacao') this.voltarLista();
+      else this.voltarDetalhe();
+    }
+  }
+
+  podeSair() {
+    // Após o encerramento da sessão, a confirmação de Sair já foi resolvida.
+    if (this.sessao.contexto() === undefined) return true;
+    if (this.faseSaida() !== 'livre' || this.saida.ocupada()) return false;
+    const estado = this.estadoEditor();
+    if (!estado?.tentativaIncerta && !estado?.rascunhoAlterado && !estado?.selecaoPendente) return true;
+    if (this.confirmacaoDescarte) return this.confirmacaoDescarte.resultado;
+    let resolver!: (confirmado: boolean) => void;
+    const resultado = new Promise<boolean>(r => resolver = r);
+    this.confirmacaoDescarte = { resultado, resolver };
+    const dialogo = this.dialogoDescarte().nativeElement;
+    this.mensagemDescarte.set(estado.tentativaIncerta
+      ? 'A gravação ainda não foi confirmada. Se você voltar ou trocar de tela, não poderá repetir o mesmo envio aqui.'
+      : 'Você tem alterações não salvas. Se continuar, os dados em edição serão descartados.');
+    this.mudancas.detectChanges();
+    dialogo.showModal();
+    return resultado;
+  }
+
+  fecharDescarte(confirmado: boolean) {
+    const pendente = this.confirmacaoDescarte;
+    this.confirmacaoDescarte = undefined;
+    const dialogo = this.dialogoDescarte().nativeElement;
+    if (dialogo.open) dialogo.close();
+    pendente?.resolver(confirmado && this.faseSaida() === 'livre' && !this.saida.ocupada());
+  }
+
+  avisarRecarregamento(evento: BeforeUnloadEvent) {
+    if (!this.sessao.contexto()) return;
+    const estado = this.estadoEditor();
+    if (estado?.rascunhoAlterado || estado?.selecaoPendente || estado?.tentativaIncerta || this.saida.ocupada()) {
+      evento.preventDefault();
+      evento.returnValue = true;
+    }
+  }
   contratoAberto(): RespostaComEtag<AluguelAberto> | null {
     const atual = this.detalhe();
     return atual?.dados.estado === 'EmAberto' ? { etag: atual.etag, dados: atual.dados } : null;
@@ -146,8 +231,7 @@ export class AlugueisComponent implements OnInit {
     this.detalhe.set(evento.resposta);
     this.mudarTela('detalhe');
     if (evento.confirmado) {
-      this.aviso.set('Devolução concluída. O veículo está disponível para nova contratação.');
-      this.focar('#aviso-alugueis');
+      this.publicarSucesso(`Devolução do aluguel ${evento.resposta.dados.numeroExibicao} concluída. O veículo está disponível para nova contratação.`);
     }
   }
 
@@ -172,10 +256,29 @@ export class AlugueisComponent implements OnInit {
     }
   }
 
+  pedirOcultacao() {
+    const contrato = this.detalhe()?.dados;
+    if (contrato?.estado === 'Concluido' && !contrato.oculto &&
+        !this.ocultando() && !this.ocultacaoObsoleta() && this.faseSaida() === 'livre')
+      this.dialogo().nativeElement.showModal();
+  }
+
+  fecharOcultacao() { this.dialogo().nativeElement.close(); }
+
+  conterFoco(evento: KeyboardEvent, cancelar: HTMLButtonElement, confirmar: HTMLButtonElement) {
+    if (evento.key !== 'Tab' || evento.target !== (evento.shiftKey ? cancelar : confirmar)) return;
+    evento.preventDefault();
+    (evento.shiftKey ? confirmar : cancelar).focus();
+  }
+
   async ocultar() {
+    if (!this.dialogo().nativeElement.open) return;
+    this.fecharOcultacao();
     const detalhe = this.detalhe();
     if (!detalhe || detalhe.dados.estado !== 'Concluido' || detalhe.dados.oculto ||
         this.ocultando() || this.ocultacaoObsoleta()) return;
+    const liberar = this.saida.iniciarMutacao();
+    if (!liberar) return;
     this.ocultando.set(true);
     this.erroOcultar.set('');
     const leitura = this.leitura;
@@ -183,8 +286,7 @@ export class AlugueisComponent implements OnInit {
       await this.api.ocultar(detalhe.dados.id, detalhe.etag);
       if (leitura !== this.leitura) return;
       this.mudarTela('lista');
-      this.aviso.set(`Aluguel ${detalhe.dados.id} ocultado da operação. O contrato e o demonstrativo foram preservados.`);
-      this.focar('#aviso-alugueis');
+      this.publicarSucesso(`Aluguel ${detalhe.dados.numeroExibicao} ocultado da operação. O contrato e o demonstrativo foram preservados.`);
       void this.carregarLista();
     } catch (erro) {
       if (leitura !== this.leitura) return;
@@ -193,13 +295,13 @@ export class AlugueisComponent implements OnInit {
       this.erroOcultar.set(obsoleto ? 'O aluguel não foi ocultado por este envio porque a versão mudou. Volte à lista e consulte novamente.'
         : 'Não foi possível confirmar a ocultação do aluguel. Consulte novamente ou tente repetir a operação.');
       this.focar('#erro-ocultar-aluguel');
-    } finally { this.ocultando.set(false); }
+    } finally { liberar(); this.ocultando.set(false); }
   }
 
   gravado(resultado: RespostaComEtag<AluguelDetalhe>) {
     const editando = this.tela() === 'edicao';
     this.detalhe.set(resultado); this.carregando.set(false); this.mudarTela('detalhe');
-    this.aviso.set(editando ? 'Alterações salvas. A revisão atual do contrato está disponível.'
-      : 'Contratação confirmada. O veículo está ocupado por este aluguel.');
+    this.publicarSucesso(editando ? `Alterações do aluguel ${resultado.dados.numeroExibicao} salvas. A revisão atual está disponível.`
+      : `Contratação do aluguel ${resultado.dados.numeroExibicao} confirmada. O veículo está ocupado por este aluguel.`);
   }
 }

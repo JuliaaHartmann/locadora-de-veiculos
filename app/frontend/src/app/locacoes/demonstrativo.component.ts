@@ -5,10 +5,11 @@ import { ComponenteContratado, DemonstrativoEstimado, rotuloPlano } from './alug
 @Component({
   standalone: true,
   selector: 'app-demonstrativo-aluguel',
+  styleUrl: './alugueis-cartoes.css',
   template: `
-    <section class="min-w-0 rounded-xl border border-slate-300 bg-white shadow-sm" aria-labelledby="titulo-demonstrativo">
+    <section class="cartao-aluguel" aria-labelledby="titulo-demonstrativo">
       <header class="border-b border-slate-200 p-4">
-        <h2 id="titulo-demonstrativo" tabindex="-1" class="text-lg font-semibold">{{ titulo() }}</h2>
+        <h2 id="titulo-demonstrativo" tabindex="-1" data-foco-gerenciado class="text-lg font-semibold">{{ titulo() }}</h2>
         <small class="text-slate-600">
           {{ estimativa() ? periodo(estimativa()!.diarias) + ' de 24 h · Horário de São Paulo' : 'Parcelas conhecidas da contratação.' }}
         </small>
@@ -48,7 +49,7 @@ import { ComponenteContratado, DemonstrativoEstimado, rotuloPlano } from './alug
               </div>
             }
           </dl>
-          <dl class="flex items-center justify-between gap-3 rounded-lg bg-blue-50 p-3">
+          <dl class="total-aluguel flex flex-wrap items-center justify-between gap-3 rounded-lg p-3">
             <dt class="font-semibold">Parcelas conhecidas</dt>
             <dd class="shrink-0 text-lg font-bold tabular-nums">{{ moeda(dados.parcelasConhecidas) }}</dd>
           </dl>
@@ -61,7 +62,7 @@ import { ComponenteContratado, DemonstrativoEstimado, rotuloPlano } from './alug
           <p class="m-0 text-slate-600">Preencha os dados e calcule a estimativa para conferir os valores.</p>
         }
       </div>
-      <div class="border-t border-slate-200 bg-slate-50 p-4" [class.rounded-b-xl]="!criacao()">
+      <div class="caucao-aluguel border-t border-slate-200 p-4" [class.rounded-b-xl]="!criacao()">
         <dl class="flex justify-between gap-3"><dt>Caução</dt>
           <dd class="font-semibold tabular-nums">{{ moeda(estimativa()?.caucao ?? '1000.00') }}</dd></dl>
         <small class="text-slate-600">Garantia separada, não incluída no custo do aluguel.</small>

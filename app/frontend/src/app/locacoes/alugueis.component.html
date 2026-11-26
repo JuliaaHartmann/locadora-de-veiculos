@@ -1,7 +1,7 @@
 <a href="#conteudo-alugueis" class="sr-only focus:not-sr-only">Ir para o conteúdo de Aluguéis</a>
-<main id="conteudo-alugueis" tabindex="-1" class="max-w-6xl">
-  <header class="mb-5">
-    <p class="m-0 text-sm text-slate-600">Operação / Aluguéis
+<section id="conteudo-alugueis" tabindex="-1" data-foco-gerenciado class="quadro-operacional">
+  <header>
+    <p class="sobretitulo">Operação / Aluguéis
       @switch (tela()) {
         @case ('detalhe') { / Detalhe }
         @case ('contratacao') { / Contratação }
@@ -9,16 +9,23 @@
         @case ('devolucao') { / Devolução }
       }
     </p>
-    <h1 #titulo tabindex="-1" class="my-1">
+    <h1 #titulo id="titulo-alugueis" tabindex="-1" data-foco-gerenciado>
       @switch (tela()) {
         @case ('lista') { Aluguéis }
-        @case ('detalhe') { Aluguel {{ detalhe()?.dados?.id }} }
+        @case ('detalhe') {
+          @if (detalhe()?.dados; as contrato) { Aluguel de {{ contrato.cliente.nome }} }
+          @else { Detalhe do aluguel }
+        }
         @case ('contratacao') { Nova contratação }
-        @case ('edicao') { Editar aluguel {{ detalhe()?.dados?.id }} }
+        @case ('edicao') { Editar aluguel {{ detalhe()?.dados?.numeroExibicao }} }
         @case ('devolucao') { Registrar devolução }
       }
     </h1>
-    <p class="m-0 text-slate-600">
+    @if (tela() === 'detalhe' && detalhe()?.dados; as contrato) {
+      <p class="referencia-contrato">Código do contrato: <strong>{{ contrato.numeroExibicao }}</strong></p>
+    }
+    <hr class="regua">
+    <p class="introducao">
       @switch (tela()) {
         @case ('lista') { Consulte contratos e confira estimativas ou valores finais. }
         @case ('detalhe') {
@@ -31,18 +38,34 @@
       }
     </p>
   </header>
-  @if (aviso()) { <p id="aviso-alugueis" tabindex="-1" class="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-emerald-800" role="status">{{ aviso() }}</p> }
+  <p id="anuncio-alugueis" class="sr-only" role="status" aria-live="polite" aria-atomic="true">{{ anuncio() }}</p>
+  <div class="saida-incerta" role="alert">
+    @if (faseSaida() === 'incerta') {
+      Não foi possível confirmar a revogação remota. Tente sair novamente ou entre de novo.
+    }
+  </div>
+  @if (faseSaida() === 'incerta') {
+    <button type="button" class="compacto mb-4" (click)="reautenticar()">Entrar novamente</button>
+  }
+  <div class="aviso" [class.visivel]="aviso()">
+    <p id="aviso-alugueis">
+      @if (aviso()) { <svg lucideCircleCheck class="mr-1 inline size-5" aria-hidden="true"></svg>{{ aviso() }} }
+    </p>
+    @if (aviso()) {
+      <button type="button" class="acao" aria-label="Fechar aviso" (click)="limparAviso(); focar('#titulo-alugueis')"><svg lucideX aria-hidden="true"></svg></button>
+    }
+  </div>
 
   @if (tela() === 'lista') {
-    <section class="min-w-0 rounded-xl border border-slate-300 bg-white shadow-sm" aria-labelledby="titulo-lista">
-      <header class="flex flex-wrap items-center justify-between gap-3 p-4">
-        <div><h2 id="titulo-lista" class="text-lg font-semibold">Consulta de aluguéis</h2>
+    <section class="quadro" aria-labelledby="titulo-lista">
+      <header class="barra">
+        <div><h2 id="titulo-lista">Aluguéis cadastrados</h2>
           <p class="m-0 text-sm text-slate-600">A consulta padrão não inclui aluguéis ocultos.</p></div>
-        <button class="mt-0" type="button" (click)="nova()">Nova contratação</button>
+        <button class="primario" type="button" [disabled]="faseSaida() !== 'livre'" (click)="nova()">Nova contratação</button>
       </header>
       <form novalidate (submit)="filtrar($event, filtroEstado.value, filtroVeiculo.value, filtroDe.value, filtroAte.value, filtroOcultos.checked)"
-        class="m-0 grid gap-3 border-y border-slate-200 bg-slate-50 p-4">
-        <div class="grid items-start gap-3 min-[481px]:grid-cols-2 min-[831px]:grid-cols-[1fr_1.35fr_1fr_1fr]">
+        class="filtros-consulta">
+        <div class="grid items-start gap-2 min-[481px]:grid-cols-2 min-[831px]:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_minmax(0,1fr)_minmax(0,1fr)]">
           <div class="grid min-w-0 gap-1"><label for="filtro-estado">Situação</label>
             <select #filtroEstado id="filtro-estado" [value]="filtroNaTela().estado">
               <option value="">Todas as situações</option><option value="EmAberto">Em aberto</option><option value="Concluido">Concluído</option>
@@ -55,80 +78,82 @@
             </select>
           </div>
           <div class="grid min-w-0 gap-1"><label for="filtro-de">Saída a partir de</label>
-            <input #filtroDe id="filtro-de" placeholder="dd/mm/aaaa" [value]="filtroNaTela().de" [attr.aria-invalid]="errosDatas().de ? 'true' : null"
-              [attr.aria-describedby]="errosDatas().de ? 'ajuda-filtros erro-filtro-de' : 'ajuda-filtros'">
-            @if (errosDatas().de) { <small id="erro-filtro-de">{{ errosDatas().de }}</small> }
+            <input #filtroDe id="filtro-de" inputmode="numeric" placeholder="10/07/2027" [value]="filtroNaTela().de"
+              (input)="alterarDataFiltro('de', $event)" [attr.aria-invalid]="errosDatas().de ? 'true' : null"
+              [attr.aria-describedby]="errosDatas().de ? 'erro-filtro-de' : 'ajuda-filtros'">
+            @if (errosDatas().de) { <small id="erro-filtro-de" class="erro-campo">{{ errosDatas().de }}</small> }
           </div>
           <div class="grid min-w-0 gap-1"><label for="filtro-ate">Saída até</label>
-            <input #filtroAte id="filtro-ate" placeholder="dd/mm/aaaa" [value]="filtroNaTela().ate" [attr.aria-invalid]="errosDatas().ate ? 'true' : null"
-              [attr.aria-describedby]="errosDatas().ate ? 'ajuda-filtros erro-filtro-ate' : 'ajuda-filtros'">
-            @if (errosDatas().ate) { <small id="erro-filtro-ate">{{ errosDatas().ate }}</small> }
+            <input #filtroAte id="filtro-ate" inputmode="numeric" placeholder="10/07/2027" [value]="filtroNaTela().ate"
+              (input)="alterarDataFiltro('ate', $event)" [attr.aria-invalid]="errosDatas().ate ? 'true' : null"
+              [attr.aria-describedby]="errosDatas().ate ? 'erro-filtro-ate' : 'ajuda-filtros'">
+            @if (errosDatas().ate) { <small id="erro-filtro-ate" class="erro-campo">{{ errosDatas().ate }}</small> }
           </div>
         </div>
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <div>
+        <div>
+          <div class="flex flex-wrap items-center gap-2">
             <label class="flex items-start gap-2"><input #filtroOcultos id="filtro-ocultos" type="checkbox"
               [checked]="filtroNaTela().incluir"> Incluir aluguéis ocultos</label>
-            <p id="ajuda-filtros" class="mt-1 mb-0 text-sm text-slate-600">Período de saída no horário de São Paulo. Formato: dia/mês/ano.</p>
+            <button type="submit" class="compacto">Filtrar</button>
           </div>
-          <button type="submit" class="mt-0 border border-slate-400 bg-white py-2 text-slate-900">Filtrar</button>
+          <p id="ajuda-filtros" class="mt-1 mb-0 text-sm text-slate-600">Formato: dia/mês/ano. Período de saída no horário de São Paulo.</p>
         </div>
       </form>
       @if (erroFiltro()) {
-        <p id="erro-filtro-alugueis" tabindex="-1" role="alert" class="mx-4 rounded-lg border border-red-300 bg-red-50 p-3">{{ erroFiltro() }}</p>
+        <p id="erro-filtro-alugueis" tabindex="-1" data-foco-gerenciado role="alert" class="resumo mx-4">{{ erroFiltro() }}</p>
       }
       <div [attr.aria-busy]="carregando()">
         @if (carregando()) {
           <p class="p-6 text-center text-slate-600" role="status">Carregando aluguéis…</p>
         } @else if (erroConsulta()) {
-          <div id="resultado-alugueis" tabindex="-1" class="p-6 text-center">
+          <div id="resultado-alugueis" tabindex="-1" data-foco-gerenciado class="p-6 text-center">
             <p class="m-0" role="alert">{{ erroConsulta() }}</p>
             <button type="button" (click)="tentarNovamente()">Tentar novamente</button>
           </div>
         } @else if (lista(); as pagina) {
           @if (!pagina.items.length) {
-            <p id="resultado-alugueis" tabindex="-1" class="p-6 text-center text-slate-600" role="status">Nenhum aluguel encontrado para os filtros informados.</p>
+            <p id="resultado-alugueis" tabindex="-1" data-foco-gerenciado class="p-6 text-center text-slate-600" role="status">Nenhum aluguel encontrado para os filtros informados.</p>
           } @else {
-            <div class="overflow-auto" tabindex="0" role="region" aria-label="Tabela de aluguéis">
-              <table class="w-full min-w-[58rem] border-collapse text-left">
+            <div class="regiao-tabela" tabindex="0" role="region" aria-label="Tabela de aluguéis">
+              <table class="w-full min-w-[54rem] border-collapse text-left">
                 <thead><tr>
-                  <th scope="col">ID</th><th scope="col">Condutor</th><th scope="col">Veículo</th><th scope="col">Plano</th>
+                  <th scope="col">Código</th><th scope="col">Condutor</th><th scope="col">Veículo</th><th scope="col">Plano</th>
                   <th scope="col">Saída</th><th scope="col">Retorno previsto</th><th scope="col">Situação</th>
                   <th scope="col">Valor</th><th scope="col">Ações</th>
                 </tr></thead>
                 <tbody>
                   @for (item of pagina.items; track item.id) {
                     <tr>
-                      <th scope="row" class="max-w-36 bg-white text-sm break-all text-slate-900">{{ item.id }}</th><td>{{ item.condutor }}</td>
-                      <td><strong class="block">{{ item.placa }}</strong><small class="text-slate-600">{{ item.marca }} {{ item.modelo }}</small></td>
-                      <td>{{ planos[item.plano] }}</td>
-                      <td class="tabular-nums">{{ dataHora(item.saida).data }}<small class="block text-slate-600">{{ dataHora(item.saida).hora }}</small></td>
-                      <td class="tabular-nums">{{ dataHora(item.retornoPrevisto).data }}<small class="block text-slate-600">{{ dataHora(item.retornoPrevisto).hora }}</small></td>
+                      <th scope="row" class="codigo-aluguel whitespace-nowrap">{{ item.numeroExibicao }}</th><td class="min-w-36">{{ item.condutor }}</td>
+                      <td><strong class="block whitespace-nowrap">{{ item.placa }}</strong><small class="text-slate-600">{{ item.marca }} {{ item.modelo }}</small></td>
+                      <td class="whitespace-nowrap">{{ planos[item.plano] }}</td>
+                      <td class="whitespace-nowrap tabular-nums">{{ dataHora(item.saida).data }}<small class="block text-slate-600">{{ dataHora(item.saida).hora }}</small></td>
+                      <td class="whitespace-nowrap tabular-nums">{{ dataHora(item.retornoPrevisto).data }}<small class="block text-slate-600">{{ dataHora(item.retornoPrevisto).hora }}</small></td>
                       <td>
                         @if (item.estado === 'EmAberto') {
-                          <span class="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-sm font-semibold whitespace-nowrap text-blue-800">Em aberto</span>
+                          <span class="situacao-aluguel">Em aberto</span>
                         } @else {
-                          <span class="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-sm font-semibold whitespace-nowrap text-emerald-800">Concluído</span>
-                          @if (item.oculto) { <span class="ml-1 rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-sm font-semibold">Oculto</span> }
+                          <span class="situacao-aluguel concluido">Concluído</span>
+                          @if (item.oculto) { <span class="situacao-aluguel oculto ml-1">Oculto</span> }
                         }
                       </td>
                       <td class="whitespace-nowrap tabular-nums">
                         <strong class="block">{{ moeda(item.estado === 'EmAberto' ? item.parcelasConhecidas : item.totalFinal) }}</strong>
                         <small class="text-slate-600">{{ item.estado === 'EmAberto' ? 'Estimativa' : 'Total final' }}</small></td>
-                      <td><button type="button" class="mt-0 border border-slate-400 bg-white px-2 py-2 text-sm text-slate-900"
-                        [attr.aria-label]="'Consultar aluguel ' + item.id" [attr.data-consultar]="item.id" (click)="abrir(item.id)">Consultar</button></td>
+                      <td><div class="acoes-tabela"><button type="button" class="compacto"
+                        [attr.aria-label]="'Consultar aluguel ' + item.numeroExibicao" [attr.data-consultar]="item.id" (click)="abrir(item.id)">Consultar</button></div></td>
                     </tr>
                   }
                 </tbody>
               </table>
             </div>
-            <footer class="flex flex-wrap items-center justify-between gap-2 p-4">
-              <p id="resultado-alugueis" class="m-0 text-sm text-slate-600" role="status" tabindex="-1">
+            <footer class="paginacao flex flex-wrap items-center justify-between px-5">
+              <p id="resultado-alugueis" class="m-0 text-sm text-slate-600" role="status" tabindex="-1" data-foco-gerenciado>
                 Página {{ pagina.page }} de {{ arredondarParaCima(pagina.total / pagina.pageSize) }} · {{ pagina.total }} {{ pagina.total === 1 ? 'aluguel' : 'aluguéis' }}
               </p>
               <div class="flex gap-2">
-                <button type="button" class="mt-0 border border-slate-400 bg-white py-2 text-slate-900" (click)="paginar(-1)" [disabled]="pagina.page <= 1">Anterior</button>
-                <button type="button" class="mt-0 border border-slate-400 bg-white py-2 text-slate-900" (click)="paginar(1)" [disabled]="pagina.page * pagina.pageSize >= pagina.total">Próxima</button>
+                <button type="button" (click)="paginar(-1)" [disabled]="pagina.page <= 1">Anterior</button>
+                <button type="button" (click)="paginar(1)" [disabled]="pagina.page * pagina.pageSize >= pagina.total">Próxima</button>
               </div>
             </footer>
           }
@@ -138,39 +163,39 @@
   } @else if (tela() === 'detalhe') {
     @if (carregando()) { <p role="status">Carregando aluguel…</p> }
     @else if (erroConsulta()) {
-      <p id="erro-detalhe-aluguel" tabindex="-1" role="alert">{{ erroConsulta() }}</p>
+      <p id="erro-detalhe-aluguel" tabindex="-1" data-foco-gerenciado role="alert">{{ erroConsulta() }}</p>
       <button type="button" (click)="tentarNovamente()">Tentar novamente</button>
       <button type="button" (click)="voltarLista()">Voltar aos aluguéis</button>
     } @else if (detalhe()?.dados; as contrato) {
       @if (erroOcultar()) {
-        <p id="erro-ocultar-aluguel" tabindex="-1" role="alert" class="rounded-lg border border-red-300 bg-red-50 p-4">{{ erroOcultar() }}</p>
+        <p id="erro-ocultar-aluguel" tabindex="-1" data-foco-gerenciado role="alert" class="resumo">{{ erroOcultar() }}</p>
       }
       <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
         @if (contrato.estado === 'EmAberto') {
-          <span class="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-sm font-semibold text-blue-800">Em aberto</span>
+          <span class="situacao-aluguel">Em aberto</span>
         } @else {
           <div class="flex items-center gap-2">
-            <span class="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-sm font-semibold text-emerald-800">Concluído</span>
-            @if (contrato.oculto) { <span class="rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-sm font-semibold">Oculto</span> }
+            <span class="situacao-aluguel concluido">Concluído</span>
+            @if (contrato.oculto) { <span class="situacao-aluguel oculto">Oculto</span> }
           </div>
         }
         <div class="flex flex-wrap gap-2">
-          <button type="button" class="mt-0 border border-slate-400 bg-white py-2 text-slate-900"
+          <button type="button" class="compacto"
             [disabled]="ocultando()" (click)="voltarLista()">Voltar aos aluguéis</button>
           @if (contrato.estado === 'EmAberto') {
-            <button type="button" class="mt-0 border border-slate-400 bg-white py-2 text-slate-900" (click)="editar()">Editar aluguel</button>
-            <button type="button" class="mt-0" (click)="devolver()">Registrar devolução</button>
+            <button type="button" class="compacto" [disabled]="faseSaida() !== 'livre'" (click)="editar()">Editar aluguel</button>
+            <button type="button" class="primario" [disabled]="faseSaida() !== 'livre'" (click)="devolver()">Registrar devolução</button>
           } @else if (!contrato.oculto) {
-            <button type="button" class="mt-0 border border-slate-400 bg-white py-2 text-slate-900"
-              [disabled]="ocultando() || ocultacaoObsoleta()" (click)="ocultar()">
-              {{ ocultando() ? 'Ocultando…' : 'Ocultar da operação' }}
+            <button type="button" class="compacto perigo"
+              [disabled]="ocultando() || ocultacaoObsoleta() || faseSaida() !== 'livre'" (click)="pedirOcultacao()">
+              {{ ocultando() ? 'Ocultando…' : 'Ocultar aluguel' }}
             </button>
           }
         </div>
       </div>
       <div class="grid gap-4 min-[831px]:grid-cols-[minmax(0,1.55fr)_minmax(17rem,1fr)]">
         <div class="grid content-start gap-4">
-          <section class="rounded-xl border border-slate-300 p-4 shadow-sm">
+          <section class="cartao-aluguel p-4">
             <h2 class="mb-3 text-lg font-semibold">Contratante e condutor</h2>
             <dl class="grid gap-4 [overflow-wrap:anywhere] min-[481px]:grid-cols-2">
               <div><dt class="text-sm font-semibold text-slate-600">Contratante</dt><dd>{{ contrato.cliente.nome }}
@@ -179,7 +204,7 @@
                 <small class="block text-slate-600">CNH válida até {{ dataCadastro(contrato.condutor.validadeCnh) }}</small></dd></div>
             </dl>
           </section>
-          <section class="rounded-xl border border-slate-300 p-4 shadow-sm">
+          <section class="cartao-aluguel p-4">
             <h2 class="mb-3 text-lg font-semibold">Veículo e período</h2>
             <dl class="grid gap-4 [overflow-wrap:anywhere] min-[481px]:grid-cols-2 [&_dt]:text-sm [&_dt]:font-semibold [&_dt]:text-slate-600">
               <div><dt>Veículo</dt><dd>{{ contrato.veiculo.placa }} — {{ contrato.veiculo.marca }} {{ contrato.veiculo.modelo }}</dd></div>
@@ -192,7 +217,7 @@
             <p class="mb-0 text-sm text-slate-600">Datas e horários de São Paulo.</p>
           </section>
           @if (contrato.estado === 'Concluido') {
-            <section class="rounded-xl border border-slate-300 p-4 shadow-sm">
+            <section class="cartao-aluguel p-4">
               <h2 class="text-lg font-semibold">Retorno registrado</h2>
               <p class="mt-1 text-sm text-slate-600">Horário de São Paulo · Dados do fechamento</p>
               <dl class="grid gap-4 min-[481px]:grid-cols-2 [&_dt]:text-sm [&_dt]:font-semibold [&_dt]:text-slate-600">
@@ -212,12 +237,33 @@
     }
   } @else if (tela() === 'devolucao') {
     @if (contratoAberto(); as contrato) {
-      <app-editor-devolucao [original]="contrato" (voltar)="voltarDetalhe()"
+      <app-editor-devolucao [original]="contrato" (voltar)="voltarDoEditor()"
         (revisaoCarregada)="detalhe.set($event)" (concluido)="devolvido($event)" />
     }
   } @else {
     <app-editor-aluguel [original]="tela() === 'edicao' ? contratoAberto() : null"
-      (voltar)="tela() === 'edicao' ? voltarDetalhe() : voltarLista()"
+      [autorizarDescarte]="autorizarDescarte"
+      (voltar)="voltarDoEditor()"
       (revisaoCarregada)="detalhe.set($event)" (gravado)="gravado($event)" />
   }
-</main>
+  <dialog #dialogoOcultar aria-labelledby="titulo-ocultar" aria-describedby="pergunta-ocultar historico-ocultar"
+    (cancel)="$event.preventDefault(); fecharOcultacao()" (keydown)="conterFoco($event, cancelar, confirmar)">
+    <h2 id="titulo-ocultar">Ocultar aluguel</h2>
+    <p id="pergunta-ocultar">O aluguel {{ detalhe()?.dados?.numeroExibicao }} ({{ detalhe()?.dados?.veiculo?.placa }}) sairá da consulta padrão.</p>
+    <p id="historico-ocultar">O contrato e o demonstrativo serão preservados no histórico.</p>
+    <div class="acoes-editor">
+      <button #cancelar type="button" autofocus data-foco-gerenciado (click)="fecharOcultacao()">Cancelar</button>
+      <button #confirmar type="button" class="excluir" (click)="ocultar()">Ocultar aluguel</button>
+    </div>
+  </dialog>
+  <dialog #dialogoDescarte aria-labelledby="titulo-descarte" aria-describedby="mensagem-descarte"
+    (cancel)="$event.preventDefault(); fecharDescarte(false)"
+    (keydown)="conterFoco($event, cancelarDescarte, confirmarDescarte)">
+    <h2 id="titulo-descarte">Descartar alterações?</h2>
+    <p id="mensagem-descarte">{{ mensagemDescarte() }}</p>
+    <div class="acoes-editor">
+      <button #cancelarDescarte type="button" autofocus data-foco-gerenciado (click)="fecharDescarte(false)">Cancelar</button>
+      <button #confirmarDescarte type="button" class="excluir" (click)="fecharDescarte(true)">Descartar e continuar</button>
+    </div>
+  </dialog>
+</section>

@@ -44,6 +44,29 @@ describe('Layout e navegação autenticados', () => {
     expect(harness.routeNativeElement?.querySelector('nav[aria-label="Navegação principal"]')).toBeNull();
   });
 
+  it.each(modulos)('abre %s pelo cartão, transfere aria-current e só libera Sair quando integrado', async (caminho, nome) => {
+    autenticar();
+    const harness = await RouterTestingHarness.create('/');
+    const el = harness.routeNativeElement!;
+    expect(el.querySelector('main h1')?.textContent).toBe('Início');
+    const principal = el.querySelector('nav[aria-label="Navegação principal"]')!;
+    expect(principal.querySelector('[aria-current="page"]')?.getAttribute('href')).toBe('/');
+    expect(el.querySelector('aside button')?.textContent?.trim()).toBe('Sair');
+    const cartoes = [...el.querySelectorAll<HTMLAnchorElement>('main nav a')];
+    expect(cartoes.map(a => a.getAttribute('href'))).toEqual(modulos.map(([rota]) => rota));
+    const alvo = cartoes.find(a => a.getAttribute('href') === caminho)!;
+    expect(alvo.textContent).toContain(nome);
+    alvo.click();
+    await vi.waitFor(() => expect(router.url).toBe(caminho));
+    harness.detectChanges();
+    const ativo = principal.querySelector('[aria-current="page"]');
+    expect(ativo?.getAttribute('href')).toBe(caminho);
+    expect(ativo?.classList.contains('ativo')).toBe(true);
+    expect(el.querySelector('aside button')?.textContent?.trim()).toBe('Sair');
+    await harness.navigateByUrl(caminho + '?origem=inicio');
+    expect(principal.querySelector('[aria-current="page"]')?.getAttribute('href')).toBe(caminho);
+  });
+
   it('preserva a decisão do guarda da devolução em navegação comum', async () => {
     autenticar();
     await RouterTestingHarness.create('/alugueis');
