@@ -3,6 +3,7 @@ import { authGuard } from './auth.guard';
 import type { AlugueisComponent } from './locacoes/alugueis.component';
 import type { FrotaComponent } from './frota.component';
 import type { PessoasComponent } from './pessoas.component';
+import type { PrecosComponent } from './precos.component';
 import { inject } from '@angular/core';
 import { SessaoService } from './sessao.service';
 
@@ -31,7 +32,8 @@ export const routes: Routes = [
         loadComponent: () => import('./pessoas.component').then(m => m.PessoasComponent),
       },
       {
-        path: 'precos',
+        path: 'precos', data: { saidaIntegrada: true },
+        canDeactivate: [(componente: PrecosComponent) => componente.podeNavegar()],
         loadComponent: () => import('./precos.component').then(m => m.PrecosComponent),
       },
       {
