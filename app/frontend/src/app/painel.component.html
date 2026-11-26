@@ -1,0 +1,27 @@
+<main class="inicio">
+  <div class="bloco">
+    <p class="area-administrativa">Área administrativa</p>
+    <h1>Início</h1>
+    <hr aria-hidden="true">
+    <h2 id="titulo-modulos">Módulos</h2>
+    <nav class="cartoes grid grid-cols-1" aria-labelledby="titulo-modulos">
+      @for (modulo of modulos; track modulo.caminho) {
+        <a class="cartao flex min-w-0 items-center gap-4" [routerLink]="modulo.caminho">
+          <span class="icone grid place-items-center"><app-icone-modulo [nome]="modulo.icone" /></span>
+          <span class="flex min-w-0 flex-col items-start">
+            <span class="nome-modulo">{{ modulo.nome }}</span>
+            <span class="acao flex items-center gap-2">Acessar
+              <svg lucideArrowRight class="size-4" aria-hidden="true" focusable="false"></svg>
+            </span>
+          </span>
+        </a>
+      }
+    </nav>
+    <div role="alert" class="alerta">@if (faseSaida() === 'incerta') {
+      Não foi possível confirmar a revogação remota. Tente sair novamente ou entre de novo.
+    }</div>
+    @if (faseSaida() === 'incerta') {
+      <button type="button" class="reautenticar" (click)="reautenticar()">Entrar novamente</button>
+    }
+  </div>
+</main>

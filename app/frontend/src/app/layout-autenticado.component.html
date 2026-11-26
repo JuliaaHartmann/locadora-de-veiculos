@@ -1,0 +1,50 @@
+<div class="estrutura grid">
+  <aside class="menu flex min-w-0 flex-col">
+    <img class="logotipo" src="login/logo-transparente.png" alt="LocaCar">
+    <p class="rotulo-menu">Navegação</p>
+    <nav aria-label="Navegação principal">
+      <ul class="lista-menu grid">
+        <li>
+          <a class="item-menu" routerLink="/" routerLinkActive="ativo"
+            [routerLinkActiveOptions]="rotaAtiva" ariaCurrentWhenActive="page">
+            <app-icone-modulo nome="inicio" /> Início
+          </a>
+        </li>
+        @for (modulo of modulos; track modulo.caminho) {
+          <li>
+            <a class="item-menu" [routerLink]="modulo.caminho" routerLinkActive="ativo"
+              [routerLinkActiveOptions]="rotaAtiva" ariaCurrentWhenActive="page">
+              <app-icone-modulo [nome]="modulo.icone" /> {{ modulo.nome }}
+            </a>
+          </li>
+        }
+      </ul>
+    </nav>
+    @if (saidaIntegrada()) {
+      <div class="rodape-menu">
+        <button class="item-menu botao-sair" type="button" (click)="sair()"
+          [attr.aria-disabled]="saida.ocupada() || saida.fase() === 'revogando' ? 'true' : null"
+          [attr.aria-describedby]="saida.ocupada() || saida.fase() === 'revogando' ? 'situacao-saida' : null">
+          <svg lucideLogOut aria-hidden="true" focusable="false"></svg> Sair
+        </button>
+        <div id="situacao-saida" role="status">@if (saida.ocupada()) { Aguarde a operação em andamento. }
+          @else if (saida.fase() === 'revogando') { Confirmando a revogação… }</div>
+      </div>
+    }
+  </aside>
+  <div class="area min-w-0">
+    <router-outlet #outlet="outlet" (activate)="saidaIntegrada.set(outlet.activatedRouteData['saidaIntegrada'] === true)"
+      (deactivate)="desativarSaida()" />
+  </div>
+</div>
+
+<dialog #dialogo aria-labelledby="titulo-saida" aria-describedby="mensagem-saida"
+  (cancel)="$event.preventDefault(); fecharConfirmacao(false)"
+  (keydown)="conterFoco($event, cancelar, confirmar)">
+  <h2 id="titulo-saida">Sair do sistema?</h2>
+  <p id="mensagem-saida">{{ mensagem() }}</p>
+  <div class="flex flex-wrap justify-end gap-2">
+    <button #cancelar type="button" autofocus data-foco-gerenciado (click)="fecharConfirmacao(false)">Cancelar</button>
+    <button #confirmar type="button" class="confirmar" (click)="fecharConfirmacao(true)">Sair</button>
+  </div>
+</dialog>
