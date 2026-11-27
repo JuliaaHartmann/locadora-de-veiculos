@@ -18,6 +18,13 @@
 - Na revisão de segurança, o build Release direcionado passou sem avisos ou erros. Cinco casos fictícios verificaram que o bloqueio é o padrão, que apenas `true` o libera e que ele não afeta o diagnóstico. A análise do YAML confirmou o bloqueio antes da etapa com secrets; a análise estática conferiu as 22 tabelas, o envio da senha apenas na criação e a ordem da checagem transacional, commit e autenticação independente. O comportamento de `EXECUTE AS` e a redação pela auditoria não foram ensaiados nesta revisão local.
 - Na revisão de escopo, a inspeção estrutural do YAML confirmou a retirada do ambiente, a guarda da `main` e os secrets por modo. O passo Bash de bloqueio foi verificado localmente: valor ausente e `false` falham, `true` libera. Nenhum secret foi usado nesses testes.
 
+## 2. Publicação definitiva (DT-25)
+
+- [x] 2.1 Substituir os modos manuais pelo fluxo automático na `main`; verificar a ordem, o uso de OIDC e a separação dos secrets no YAML.
+- [x] 2.2 Reusar a ferramenta SQL com reconexão limitada para `40613` e configurar App Settings em memória; compilar a ferramenta e verificar localmente a sintaxe e o mapeamento das configurações.
+
+**Evidências:** build Release da ferramenta e publish local da API passaram. A análise do YAML confirmou a sequência, OIDC e a separação das credenciais. O PowerShell foi validado com chamadas ARM simuladas e valores fictícios, incluindo a preservação de uma configuração existente. A reconexão e o deploy não foram executados na Azure.
+
 ## Workflow follow-up
 
-- Após autorização separada, validar a conexão pelo runner e qualificar o usuário com permissões positivas e negativas no Azure SQL. Só habilitar o deploy automático em etapa posterior.
+- Os modos manuais e o bloqueio por aprovação da seção 1 são evidências históricas, substituídas pela seção 2. A execução na Azure requer autorização para integrar na `main`.

@@ -7,47 +7,27 @@ const string servidor = "locacar.database.windows.net";
 const string banco = "locacar-db";
 const string usuarioApi = "locacar_api";
 
-if (args is not (["validar-conectividade"] or ["configurar-banco"]))
-{
-    Console.Error.WriteLine("Selecione validar-conectividade ou configurar-banco.");
-    return 1;
-}
-
-var configurarBanco = args[0] == "configurar-banco";
-if (configurarBanco && Environment.GetEnvironmentVariable("AZURE_SQL_CONFIGURACAO_APROVADA") != "true")
-{
-    Console.Error.WriteLine("Configuração bloqueada até aprovação explícita após a revisão de auditoria e tracing.");
-    return 1;
-}
-
 var etapa = "validar SQLSERVER_CONNECTIONSTRING";
 try
 {
     var configuracaoAdmin = LerConexao("SQLSERVER_CONNECTIONSTRING", runtime: false);
-    SqlConnectionStringBuilder? configuracaoRuntime = null;
-    if (configurarBanco)
+    etapa = "validar SQLSERVER_RUNTIME_CONNECTIONSTRING";
+    var configuracaoRuntime = LerConexao("SQLSERVER_RUNTIME_CONNECTIONSTRING", runtime: true);
+    if (configuracaoRuntime.Password == configuracaoAdmin.Password)
     {
-        etapa = "validar SQLSERVER_RUNTIME_CONNECTIONSTRING";
-        configuracaoRuntime = LerConexao("SQLSERVER_RUNTIME_CONNECTIONSTRING", runtime: true);
-        if (configuracaoRuntime.Password == configuracaoAdmin.Password)
-        {
-            Console.Error.WriteLine("As credenciais de migrations e de runtime precisam de senhas distintas.");
-            return 1;
-        }
+        Console.Error.WriteLine("As credenciais de migrations e de runtime precisam de senhas distintas.");
+        return 1;
     }
 
     etapa = "validar conectividade com o Azure SQL";
     await using var admin = new SqlConnection(configuracaoAdmin.ConnectionString);
-    await admin.OpenAsync();
+    await AbrirConexaoAsync(admin);
     await using (var consulta = new SqlCommand("SELECT 1 WHERE DB_NAME() = N'locacar-db';", admin))
     {
         if (await consulta.ExecuteScalarAsync() is not 1)
             throw new InvalidOperationException();
     }
     Console.WriteLine("Conexão autenticada com locacar-db confirmada.");
-
-    if (configuracaoRuntime is null)
-        return 0;
 
     etapa = "aplicar as migrations";
     var opcoes = new DbContextOptionsBuilder<LocadoraDbContext>().UseSqlServer(admin).Options;
@@ -69,6 +49,7 @@ catch (SqlException erro)
     var categoria = erro.Number switch
     {
         40615 or 47073 => "acesso de rede ou firewall bloqueado",
+        40613 => "banco temporariamente indisponível",
         18456 or 4060 => "autenticação ou acesso ao banco recusado",
         -2 => "tempo limite excedido",
         _ => "erro do SQL ou do transporte",
@@ -80,6 +61,24 @@ catch (Exception)
 {
     Console.Error.WriteLine($"Falha ao {etapa}. Revise a configuração da etapa.");
     return 1;
+}
+
+static async Task AbrirConexaoAsync(SqlConnection conexao)
+{
+    const int maxReconexoes = 2;
+    for (var tentativa = 0; ; tentativa++)
+    {
+        try
+        {
+            await conexao.OpenAsync();
+            return;
+        }
+        catch (SqlException erro) when (erro.Number == 40613 && tentativa < maxReconexoes)
+        {
+            Console.WriteLine($"Azure SQL indisponível (40613); reconexão {tentativa + 1}/{maxReconexoes}.");
+            await Task.Delay(TimeSpan.FromSeconds(15 * (tentativa + 1)));
+        }
+    }
 }
 
 static SqlConnectionStringBuilder LerConexao(string secret, bool runtime)
@@ -114,6 +113,7 @@ static SqlConnectionStringBuilder LerConexao(string secret, bool runtime)
         Encrypt = entrada.Encrypt,
         TrustServerCertificate = false,
         ConnectTimeout = 60,
+        ConnectRetryCount = 0,
         Pooling = false,
     };
 }
@@ -142,7 +142,7 @@ static async Task ConfigurarUsuarioAsync(SqlConnection admin, string senha)
 static async Task ConfirmarAutenticacaoRuntimeAsync(string conexao)
 {
     await using var runtime = new SqlConnection(conexao);
-    await runtime.OpenAsync();
+    await AbrirConexaoAsync(runtime);
     await using var consulta = new SqlCommand(
         "SELECT 1 WHERE DB_NAME() = N'locacar-db' AND USER_NAME() = N'locacar_api';", runtime);
     if (await consulta.ExecuteScalarAsync() is not 1)

@@ -1,43 +1,26 @@
-name: Preparar banco de produção do backend
+name: Publicar backend na Azure
 
 on:
-  workflow_dispatch:
-    inputs:
-      modo:
-        description: Modo de execução
-        required: true
-        type: choice
-        default: validar-conectividade
-        options:
-          - validar-conectividade
-          - configurar-banco
+  push:
+    branches: [main]
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
-  preparar-banco:
-    if: github.ref == 'refs/heads/main' && (inputs.modo == 'validar-conectividade' || inputs.modo == 'configurar-banco')
+  publicar:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     concurrency:
-      group: locacar-banco-producao
+      group: locacar-backend-producao
       cancel-in-progress: false
     defaults:
       run:
         working-directory: app/backend
 
     steps:
-      - name: Exigir aprovação da configuração do banco
-        if: inputs.modo == 'configurar-banco'
-        env:
-          AZURE_SQL_CONFIGURACAO_APROVADA: ${{ vars.AZURE_SQL_CONFIGURACAO_APROVADA }}
-        run: |
-          if [[ "$AZURE_SQL_CONFIGURACAO_APROVADA" != true ]]; then
-            echo "::error::Configuração bloqueada até aprovação explícita após a revisão de auditoria e tracing."
-            exit 1
-          fi
-
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           persist-credentials: false
@@ -46,21 +29,44 @@ jobs:
         with:
           global-json-file: app/backend/global.json
 
-      - name: Compilar ferramenta de banco
+      - name: Compilar e publicar pacote
         run: |
+          dotnet restore src/Locadora.Api/Locadora.Api.csproj --locked-mode
+          dotnet publish src/Locadora.Api/Locadora.Api.csproj -c Release --no-restore -o "$RUNNER_TEMP/locacar-api"
           dotnet restore operacao/banco-producao/Locadora.BancoProducao.csproj --locked-mode
-          dotnet build operacao/banco-producao/Locadora.BancoProducao.csproj --configuration Release --no-restore
+          dotnet build operacao/banco-producao/Locadora.BancoProducao.csproj -c Release --no-restore
 
-      - name: Validar conectividade
-        if: inputs.modo == 'validar-conectividade'
+      - name: Aplicar migrations e permissões SQL
         env:
-          SQLSERVER_CONNECTIONSTRING: ${{ secrets.SQLSERVER_CONNECTIONSTRING }}
-        run: dotnet operacao/banco-producao/bin/Release/net10.0/Locadora.BancoProducao.dll validar-conectividade
-
-      - name: Configurar banco sem publicar
-        if: inputs.modo == 'configurar-banco'
-        env:
-          AZURE_SQL_CONFIGURACAO_APROVADA: ${{ vars.AZURE_SQL_CONFIGURACAO_APROVADA }}
           SQLSERVER_CONNECTIONSTRING: ${{ secrets.SQLSERVER_CONNECTIONSTRING }}
           SQLSERVER_RUNTIME_CONNECTIONSTRING: ${{ secrets.SQLSERVER_RUNTIME_CONNECTIONSTRING }}
-        run: dotnet operacao/banco-producao/bin/Release/net10.0/Locadora.BancoProducao.dll configurar-banco
+        run: dotnet operacao/banco-producao/bin/Release/net10.0/Locadora.BancoProducao.dll
+
+      - name: Autenticar na Azure via OIDC
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        env:
+          AZURE_CORE_OUTPUT: none
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Configurar App Service
+        shell: pwsh
+        env:
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          SQLSERVER_RUNTIME_CONNECTIONSTRING: ${{ secrets.SQLSERVER_RUNTIME_CONNECTIONSTRING }}
+          JWT_SIGNING_KEY: ${{ secrets.JWT_SIGNING_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          LOCACAR_FRONTEND_ORIGIN: ${{ vars.LOCACAR_FRONTEND_ORIGIN }}
+        run: ./operacao/Configurar-AppService.ps1
+
+      - name: Publicar API no App Service
+        uses: azure/webapps-deploy@de617f46172a906d0617bb0e50d81e9e3aec24c8 # v3.0.1
+        with:
+          app-name: locacar-api
+          resource-group-name: locacar
+          package: ${{ runner.temp }}/locacar-api

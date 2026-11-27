@@ -6,9 +6,9 @@ O banco de produção informado para a LocaCar é novo. A F6 precisa validar o a
 
 ## What Changes
 
-- Preparar dois modos manuais na `main`: somente conectividade e configuração inicial, ambos sem publicação.
-- Criar um usuário SQL contido para a API e versionar os grants específicos por tabela. Preservar o caminho para migrations e grants automáticos antes do deploy futuro.
-- Priorizar a configuração de rede atual. Alterar firewall, recursos, secrets e workflows de frontend ou ativar a publicação está fora deste recorte.
+- Usar um workflow automático na `main`: build e publish, migrations e grants, App Settings e deploy da API via OIDC.
+- Provisionar o usuário SQL contido na primeira execução e reaplicar os grants específicos por tabela nas seguintes.
+- Preservar a rede e a branch do frontend. A execução na Azure e a integração exigem autorização separada.
 
 ## Capabilities
 
