@@ -1,0 +1,66 @@
+name: Preparar banco de produção do backend
+
+on:
+  workflow_dispatch:
+    inputs:
+      modo:
+        description: Modo de execução
+        required: true
+        type: choice
+        default: validar-conectividade
+        options:
+          - validar-conectividade
+          - configurar-banco
+
+permissions:
+  contents: read
+
+jobs:
+  preparar-banco:
+    if: github.ref == 'refs/heads/main' && (inputs.modo == 'validar-conectividade' || inputs.modo == 'configurar-banco')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: locacar-banco-producao
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: app/backend
+
+    steps:
+      - name: Exigir aprovação da configuração do banco
+        if: inputs.modo == 'configurar-banco'
+        env:
+          AZURE_SQL_CONFIGURACAO_APROVADA: ${{ vars.AZURE_SQL_CONFIGURACAO_APROVADA }}
+        run: |
+          if [[ "$AZURE_SQL_CONFIGURACAO_APROVADA" != true ]]; then
+            echo "::error::Configuração bloqueada até aprovação explícita após a revisão de auditoria e tracing."
+            exit 1
+          fi
+
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@baa11fbfe1d6520db94683bd5c7a3818018e4309 # v5.1.0
+        with:
+          global-json-file: app/backend/global.json
+
+      - name: Compilar ferramenta de banco
+        run: |
+          dotnet restore operacao/banco-producao/Locadora.BancoProducao.csproj --locked-mode
+          dotnet build operacao/banco-producao/Locadora.BancoProducao.csproj --configuration Release --no-restore
+
+      - name: Validar conectividade
+        if: inputs.modo == 'validar-conectividade'
+        env:
+          SQLSERVER_CONNECTIONSTRING: ${{ secrets.SQLSERVER_CONNECTIONSTRING }}
+        run: dotnet operacao/banco-producao/bin/Release/net10.0/Locadora.BancoProducao.dll validar-conectividade
+
+      - name: Configurar banco sem publicar
+        if: inputs.modo == 'configurar-banco'
+        env:
+          AZURE_SQL_CONFIGURACAO_APROVADA: ${{ vars.AZURE_SQL_CONFIGURACAO_APROVADA }}
+          SQLSERVER_CONNECTIONSTRING: ${{ secrets.SQLSERVER_CONNECTIONSTRING }}
+          SQLSERVER_RUNTIME_CONNECTIONSTRING: ${{ secrets.SQLSERVER_RUNTIME_CONNECTIONSTRING }}
+        run: dotnet operacao/banco-producao/bin/Release/net10.0/Locadora.BancoProducao.dll configurar-banco
