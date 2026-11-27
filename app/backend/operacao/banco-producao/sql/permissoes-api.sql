@@ -67,7 +67,9 @@ IF EXISTS (
     WHERE p.grantee_principal_id = @usuario
       AND NOT (p.state = 'G' AND p.class = 0 AND p.permission_name = N'CONNECT')
       AND NOT (p.state = 'G' AND p.class = 1 AND p.minor_id = 0 AND EXISTS (
-          SELECT 1 FROM @esperadas AS e WHERE e.ObjetoId = p.major_id AND e.Permissao = p.permission_name
+          SELECT 1 FROM @esperadas AS e
+          WHERE e.ObjetoId = p.major_id
+            AND e.Permissao = p.permission_name COLLATE DATABASE_DEFAULT
       ))
 ) OR EXISTS (
     SELECT 1 FROM sys.database_permissions AS p
