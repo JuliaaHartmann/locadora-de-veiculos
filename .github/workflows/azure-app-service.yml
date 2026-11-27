@@ -31,8 +31,11 @@ jobs:
 
       - name: Compilar e publicar pacote
         run: |
-          dotnet restore src/Locadora.Api/Locadora.Api.csproj --locked-mode
-          dotnet publish src/Locadora.Api/Locadora.Api.csproj -c Release --no-restore -o "$RUNNER_TEMP/locacar-api"
+          dotnet restore src/Locadora.Api/Locadora.Api.csproj --locked-mode \
+            -p:SelfContained=false -p:UseAppHost=false -p:EnableRuntimePackDownload=false
+          dotnet publish src/Locadora.Api/Locadora.Api.csproj -c Release -r win-x64 --self-contained false \
+            --no-restore -p:UseAppHost=false -p:DebugType=None -o "$RUNNER_TEMP/locacar-api"
+          find "$RUNNER_TEMP/locacar-api" -type f -name '*.pdb' -delete
           dotnet restore operacao/banco-producao/Locadora.BancoProducao.csproj --locked-mode
           dotnet build operacao/banco-producao/Locadora.BancoProducao.csproj -c Release --no-restore
 
