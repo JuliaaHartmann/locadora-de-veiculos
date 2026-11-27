@@ -40,7 +40,8 @@ try {
     }
     $recurso = "https://management.azure.com/subscriptions/$env:AZURE_SUBSCRIPTION_ID/resourceGroups/locacar/providers/Microsoft.Web/sites/locacar-api/config/appsettings"
     $versao = 'api-version=2024-11-01'
-    $atuais = Invoke-RestMethod @autenticacao -Uri "$recurso/list?$versao" -Method Post -AsHashtable
+    $resposta = Invoke-WebRequest @autenticacao -Uri "$recurso/list?$versao" -Method Post
+    $atuais = $resposta.Content | ConvertFrom-Json -AsHashtable -DateKind String
     if ($atuais.properties -isnot [System.Collections.IDictionary]) {
         throw 'Resposta inesperada ao listar App Settings.'
     }
