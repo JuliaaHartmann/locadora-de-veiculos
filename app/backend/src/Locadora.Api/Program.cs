@@ -159,7 +159,14 @@ if (app.Environment.IsDevelopment())
 }
 if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
     app.MapOpenApi();
-app.UseExceptionHandler(handler => handler.Run(async context =>
+app.UseExceptionHandler(new ExceptionHandlerOptions
+{
+    ExceptionHandler = TratarErroAsync,
+    SuppressDiagnosticsCallback = diagnostico =>
+        diagnostico.Exception is SqlException or DbUpdateException { InnerException: SqlException },
+});
+
+static async Task TratarErroAsync(HttpContext context)
 {
     var erro = context.Features.Get<IExceptionHandlerFeature>()?.Error;
     switch (erro)
@@ -216,17 +223,17 @@ app.UseExceptionHandler(handler => handler.Run(async context =>
         case DbUpdateException atualizacao when atualizacao.InnerException is SqlException sql && sql.Number is 2601 or 2627:
             await ErrosHttp.Escrever(context, 409, "Conflito", null, "O registro entra em conflito com um cadastro existente.");
             return;
-        case DbUpdateException atualizacao when atualizacao.InnerException is SqlException:
-            await ErrosHttp.Escrever(context, 503);
-            return;
+        case DbUpdateException { InnerException: SqlException }:
         case SqlException:
+            var erroSql = (SqlException)(erro.InnerException as SqlException ?? erro);
+            DiagnosticoSql.Registrar(context, erroSql.Number);
             await ErrosHttp.Escrever(context, 503);
             return;
         default:
             await ErrosHttp.Escrever(context, 500);
             return;
     }
-}));
+}
 app.UseStatusCodePages(async context => await ErrosHttp.Escrever(context.HttpContext, context.HttpContext.Response.StatusCode));
 app.Use(async (context, next) =>
 {
@@ -243,6 +250,44 @@ app.MapControllers();
 app.Run();
 
 public partial class Program { }
+
+internal static class DiagnosticoSql
+{
+    private static readonly object AcessoAoArquivo = new();
+
+    public static void Registrar(HttpContext context, int numero)
+    {
+        var logger = context.RequestServices.GetRequiredService<ILoggerFactory>()
+            .CreateLogger("Locadora.Api.Sql");
+        logger.LogError("Falha SQL tratada como HTTP 503. SqlErrorNumber={SqlErrorNumber}", numero);
+
+        var diretorioHome = Environment.GetEnvironmentVariable("HOME");
+        if (string.IsNullOrWhiteSpace(diretorioHome) ||
+            string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("WEBSITE_INSTANCE_ID")) ||
+            !context.RequestServices.GetRequiredService<IHostEnvironment>().IsProduction())
+            return;
+
+        // No App Service Windows, o Log Stream acompanha arquivos .log em HOME/LogFiles.
+        try
+        {
+            var pasta = Path.Combine(diretorioHome, "LogFiles");
+            var arquivo = Path.Combine(pasta, "locadora-sql.log");
+            var linha = FormattableString.Invariant($"{DateTimeOffset.UtcNow:O} HTTP 503 SqlErrorNumber={numero}{Environment.NewLine}");
+            lock (AcessoAoArquivo)
+            {
+                Directory.CreateDirectory(pasta);
+                if (new FileInfo(arquivo) is { Exists: true, Length: >= 1024 * 1024 })
+                    File.WriteAllText(arquivo, linha);
+                else
+                    File.AppendAllText(arquivo, linha);
+            }
+        }
+        catch (Exception erro) when (erro is IOException or UnauthorizedAccessException)
+        {
+            logger.LogWarning("Não foi possível gravar o diagnóstico SQL no diretório do Log Stream.");
+        }
+    }
+}
 
 internal static class ErrosHttp
 {
