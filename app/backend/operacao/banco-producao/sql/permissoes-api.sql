@@ -61,7 +61,14 @@ DECLARE @schemas TABLE (Nome nvarchar(258) PRIMARY KEY);
 INSERT @schemas
 SELECT QUOTENAME(name) FROM sys.schemas WHERE name NOT IN (N'sys', N'INFORMATION_SCHEMA');
 
--- Flags de delegação, grants fora da matriz e permissões de coluna não são aceitos.
+-- O INSERT de auditoria do EF Core retorna o identificador gerado via OUTPUT INSERTED.[Id].
+DECLARE @auditorias int = OBJECT_ID(N'dbo.Auditorias', N'U');
+DECLARE @idAuditoria int = COLUMNPROPERTY(@auditorias, N'Id', 'ColumnId');
+DECLARE @colunasAuditoria TABLE (Id int PRIMARY KEY, Nome sysname);
+INSERT @colunasAuditoria
+SELECT column_id, name FROM sys.columns WHERE object_id = @auditorias;
+
+-- Não aceitar delegação, grants fora da matriz ou acesso a outras colunas.
 IF EXISTS (
     SELECT 1 FROM sys.database_permissions AS p
     WHERE p.grantee_principal_id = @usuario
@@ -71,6 +78,8 @@ IF EXISTS (
           WHERE e.ObjetoId = p.major_id
             AND e.Permissao = p.permission_name COLLATE DATABASE_DEFAULT
       ))
+      AND NOT (p.state = 'G' AND p.class = 1 AND p.major_id = @auditorias
+          AND p.minor_id = @idAuditoria AND p.permission_name = N'SELECT')
 ) OR EXISTS (
     SELECT 1 FROM sys.database_permissions AS p
     JOIN @objetos AS o ON o.Id = p.major_id
@@ -83,6 +92,7 @@ SELECT @grants = STRING_AGG(CONVERT(nvarchar(max),
     N'GRANT ' + Permissoes + N' ON OBJECT::[dbo].' + QUOTENAME(Tabela) + N' TO [locacar_api];'), NCHAR(10))
 FROM @matriz;
 EXEC sys.sp_executesql @grants;
+GRANT SELECT ON OBJECT::[dbo].[Auditorias] ([Id]) TO [locacar_api];
 
 DECLARE @efetivas TABLE (ObjetoId int, Permissao sysname);
 EXECUTE AS USER = 'locacar_api';
@@ -99,6 +109,13 @@ BEGIN TRY
         WHERE p.permission_name IS NOT NULL
     )
         THROW 50007, N'O usuário de runtime possui privilégios excedentes no banco ou em um schema.', 1;
+
+    IF EXISTS (
+        SELECT 1 FROM @colunasAuditoria AS c
+        WHERE ISNULL(HAS_PERMS_BY_NAME(N'dbo.Auditorias', N'OBJECT', N'SELECT', c.Nome, N'COLUMN'), 0)
+            <> CASE WHEN c.Id = @idAuditoria THEN 1 ELSE 0 END
+    )
+        THROW 50009, N'A leitura efetiva das colunas de auditoria deve se limitar ao identificador.', 1;
 
     INSERT @efetivas
     SELECT o.Id, p.permission_name
